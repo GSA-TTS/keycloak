@@ -1,0 +1,5 @@
+# Exclude everything
+*
+
+# Include only what's needed
+!keycloak-login.gov-integration/target/login_gov-23.0.6.jar

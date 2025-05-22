@@ -76,10 +76,6 @@
             <groupId>org.apache.directory.server</groupId>
             <artifactId>apacheds-core-annotations</artifactId>
             <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-reload4j</artifactId>
-                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
