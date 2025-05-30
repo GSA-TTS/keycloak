@@ -5,10 +5,8 @@ target/
 .idea/
 .vscode/
 
-# Ignore version control files
-.git/
+# Ignore version control files (excluding .git/ and .gitmodules for submodule support)
 .gitignore
-.gitmodules
 .gitleaks.toml
 .gitattributes
 

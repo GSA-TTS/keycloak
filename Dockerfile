@@ -7,11 +7,33 @@ FROM maven:3.9-eclipse-temurin-17 AS builder
 COPY . /usr/src/keycloak-project/
 WORKDIR /usr/src/keycloak-project/
 
+# // Clone the keycloak-login.gov-integration repository
+# Clean up any existing keycloak-login.gov-integration directory to prevent errors during git clone.
+RUN rm -rf keycloak-login.gov-integration
+# Initialize and update submodules
+RUN git submodule update --init --recursive
+# Change directory to the cloned repository
+WORKDIR /usr/src/keycloak-project/keycloak-login.gov-integration
+# // Checkout the specific branch or tag you want to build
+RUN git checkout master
+
+# Copy the Maven settings file to the working directory.
+COPY maven-settings.xml /usr/src/keycloak-project/maven-settings.xml
+
+# Set the working directory to the root of the Keycloak project.
+WORKDIR /usr/src/keycloak-project/
+# Run Maven to clean and package the project.
+# The clean command removes any previously compiled files, ensuring a fresh build.
+
+
+
 # Build the login.gov extension module.
 # The -pl flag specifies the module to build.
 # The -am flag (alsomake) ensures that any local Maven modules it depends on are also built.
 # -DskipTests is used to speed up the build process by skipping tests.
-RUN mvn --settings maven-settings.xml clean package -pl keycloak-login.gov-integration -am -DskipTests
+RUN mvn --settings maven-settings.xml clean package -pl keycloak-login.gov-integration -am -DskipTests \
+    && mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/api-key-module -DskipTests \
+    && mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/dashboard-service -DskipTests
 
 # Stage 2: Prepare the Keycloak runtime
 # Use the official Keycloak image as the base.
@@ -24,6 +46,8 @@ FROM quay.io/keycloak/keycloak:23.0.6
 # (e.g., login_gov-VERSION.jar) into the providers directory of the Keycloak installation.
 # Using a wildcard (*) for the version part of the JAR name for flexibility.
 COPY --from=builder /usr/src/keycloak-project/keycloak-login.gov-integration/target/keycloak-login.gov-integration-*.jar /opt/keycloak/providers/
+COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/api-key-module/target/api-key-module-*.jar /opt/keycloak/providers/
+COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-service/target/dashboard-service-*.jar /opt/keycloak/providers/
 
 # Standard Keycloak environment variables (retained from original Dockerfile)
 ENV KC_HEALTH_ENABLED=true
