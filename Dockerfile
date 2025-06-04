@@ -30,8 +30,10 @@ RUN mvn --settings maven-settings.xml clean package -pl keycloak-login.gov-integ
 RUN ls -l /usr/src/keycloak-project/keycloak-login.gov-integration/target/
 
 # Build other extensions
-RUN mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/api-key-module -DskipTests \
-    && mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/dashboard-service -DskipTests
+RUN mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/api-key-module -DskipTests
+RUN ls -l /usr/src/keycloak-project/extensions/keycloak-api-key-demo/api-key-module/target/deploy/
+RUN mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/dashboard-service -DskipTests
+RUN ls -l /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-service/target/
 
 # Stage 2: Prepare the Keycloak runtime
 # Use the official Keycloak image as the base.
@@ -44,7 +46,7 @@ FROM quay.io/keycloak/keycloak:23.0.6
 # (e.g., login_gov-VERSION.jar) into the providers directory of the Keycloak installation.
 # Using a wildcard (*) for the version part of the JAR name for flexibility.
 COPY --from=builder /usr/src/keycloak-project/keycloak-login.gov-integration/target/keycloak-login.gov-integration-*.jar /opt/keycloak/providers/
-COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/api-key-module/target/api-key-module-*.jar /opt/keycloak/providers/
+COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/api-key-module/target/deploy/api-key-module-*.jar /opt/keycloak/providers/
 COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-service/target/dashboard-service-*.jar /opt/keycloak/providers/
 
 # Standard Keycloak environment variables (retained from original Dockerfile)
