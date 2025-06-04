@@ -7,15 +7,8 @@ FROM maven:3.9-eclipse-temurin-17 AS builder
 COPY . /usr/src/keycloak-project/
 WORKDIR /usr/src/keycloak-project/
 
-# // Clone the keycloak-login.gov-integration repository
-# Clean up any existing keycloak-login.gov-integration directory to prevent errors during git clone.
-RUN rm -rf keycloak-login.gov-integration
 # Initialize and update submodules
 RUN git submodule update --init --recursive
-# Change directory to the cloned repository
-WORKDIR /usr/src/keycloak-project/keycloak-login.gov-integration
-# // Checkout the specific branch or tag you want to build
-RUN git checkout master
 
 # Copy the Maven settings file to the working directory.
 COPY maven-settings.xml /usr/src/keycloak-project/maven-settings.xml
