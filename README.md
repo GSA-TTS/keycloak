@@ -52,6 +52,8 @@ To run Keycloak and its dependencies (like PostgreSQL) using Docker Compose, nav
 
 This will start Keycloak and PostgreSQL in detached mode. Keycloak will be accessible at `http://localhost:8080`.
 
+Once Keycloak is running, you can access the Admin Console at `http://localhost:8080/admin`. The default administrator credentials are `admin` for both username and password.
+
 To stop the services, run:
 
     docker compose down
