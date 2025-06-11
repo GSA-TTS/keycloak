@@ -85,10 +85,12 @@
                 <artifactId>frontend-maven-plugin</artifactId>
                 <version>${frontend.plugin.version}</version>
                 <inherited>false</inherited>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
-                            <goal>install-node-and-pnpm</goal>
                         </goals>
                     </execution>
                     <execution>

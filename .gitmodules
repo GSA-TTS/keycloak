@@ -1,0 +1,6 @@
+[submodule "keycloak-login.gov-integration"]
+	path = keycloak-login.gov-integration
+	url = https://github.com/GSA-TTS/keycloak-login.gov-integration
+[submodule "extensions/keycloak-api-key-demo"]
+	path = extensions/keycloak-api-key-demo
+	url = https://github.com/GSA-TTS/keycloak-api-key-demo.git

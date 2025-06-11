@@ -44,6 +44,20 @@ Alternatively, you can use the Docker image by running:
 
     docker run quay.io/keycloak/keycloak start-dev
     
+### Using Docker Compose
+
+To run Keycloak and its dependencies (like PostgreSQL) using Docker Compose, navigate to the root of the project and run:
+
+    docker compose up -d
+
+This will start Keycloak and PostgreSQL in detached mode. Keycloak will be accessible at `http://localhost:8080`.
+
+Once Keycloak is running, you can access the Admin Console at `http://localhost:8080/admin`. The default administrator credentials are `admin` for both username and password.
+
+To stop the services, run:
+
+    docker compose down
+    
 For more details refer to the [Keycloak Documentation](https://www.keycloak.org/documentation.html).
 
 
