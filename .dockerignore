@@ -1,5 +1,37 @@
-# Exclude everything
-*
+# Ignore all target directories
+target/
 
-# Include only what's needed
-!keycloak-login.gov-integration/target/login_gov-23.0.6.jar
+# Ignore IDE files
+.idea/
+.vscode/
+
+# Ignore version control files (excluding .git/ and .gitmodules for submodule support)
+.gitignore
+.gitleaks.toml
+.gitattributes
+
+# Ignore Maven wrapper files
+mvnw
+mvnw.cmd
+
+# Ignore Docker related files that are not part of the build context
+docker-compose.yml
+README-docker.md
+.dockerignore
+
+# Ignore other specific files/directories that are not needed for the build
+*.log
+*.iml
+.DS_Store
+.project
+.classpath
+.settings/
+tmp/
+build/
+dist/
+out/
+node_modules/
+npm-debug.log
+yarn-error.log
+.pnpm-store/
+.pnpm-lock.yaml

@@ -49,4 +49,13 @@
     <activeProfile>jboss-public-repository</activeProfile>
   </activeProfiles>
 
+  <mirrors>
+    <mirror>
+      <id>maven-central-mirror</id>
+      <name>Maven Central Mirror</name>
+      <url>https://repo.maven.apache.org/maven2/</url>
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+  </mirrors>
+
 </settings>
