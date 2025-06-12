@@ -43,13 +43,15 @@ public class LoginGovOIDCIdentityProviderPublicKeyLoader extends OIDCIdentityPro
             String jwksUrl = config.getJwksUrl();
             JSONWebKeySet jwks = JWKSHttpUtils.sendJwksRequest(session, jwksUrl);
 
-            //Patch to function with login.gov -- force a default "use" = "sig" for null "use"
-            for (JWK jwk : jwks.getKeys()) {
-                if(jwk.getPublicKeyUse() == null){
+            // Patch to function with login.gov -- force a default "use" = "sig" for null "use"
+            // This ensures that keys without an explicit 'use' parameter are treated as signing keys,
+            // which is necessary for login.gov's JWKS endpoint.
+            jwks.getKeys().stream()
+                .filter(jwk -> jwk.getPublicKeyUse() == null)
+                .forEach(jwk -> {
+                    logger.debugf("Patching JWK with kid '%s': 'use' parameter is null, forcing to 'sig'", jwk.getKeyId());
                     jwk.setPublicKeyUse(JWK.Use.SIG.asString());
-                }
-            }
-            //
+                });
 
             // Assuming JWKSUtils.getKeyWrappersForUse now returns PublicKeysWrapper
             return JWKSUtils.getKeyWrappersForUse(jwks, JWK.Use.SIG);
