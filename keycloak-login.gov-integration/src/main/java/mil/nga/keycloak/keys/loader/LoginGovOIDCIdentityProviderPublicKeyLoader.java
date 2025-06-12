@@ -12,6 +12,7 @@ import org.keycloak.protocol.oidc.utils.JWKSHttpUtils;
 import org.keycloak.util.JWKSUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
