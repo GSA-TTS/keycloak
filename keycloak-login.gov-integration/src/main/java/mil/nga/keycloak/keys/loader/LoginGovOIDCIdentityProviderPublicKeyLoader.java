@@ -47,7 +47,7 @@ public class LoginGovOIDCIdentityProviderPublicKeyLoader extends OIDCIdentityPro
             // Patch to function with login.gov -- force a default "use" = "sig" for null "use"
             // This ensures that keys without an explicit 'use' parameter are treated as signing keys,
             // which is necessary for login.gov's JWKS endpoint.
-            jwks.getKeys().stream()
+            Arrays.stream(jwks.getKeys())
                 .filter(jwk -> jwk.getPublicKeyUse() == null)
                 .forEach(jwk -> {
                     logger.debugf("Patching JWK with kid '%s': 'use' parameter is null, forcing to 'sig'", jwk.getKeyId());
