@@ -1,0 +1,32 @@
+version: '3.8'
+services:
+  auth-server:
+    image: quay.io/keycloak/keycloak:26.2.3
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME: auth-server
+      #to keep compatible with other services that are expecting /auth
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      JAVA_OPTS_APPEND: "-Dkeycloak.migration.action=import -Dkeycloak.migration.provider=dir -Dkeycloak.migration.dir=/import -Dkeycloak.migration.strategy=IGNORE_EXISTING"
+    volumes:
+      - ./import:/import
+      - ./api-key-module/target/deploy:/opt/keycloak/providers/
+    ports:
+    - "8080:8080"
+    command: ["start"]
+  dashboard-service:
+    build: dashboard-service
+    environment:
+      REALM_NAME: example
+    ports:
+    - "8180:8180"
+  rest-api-service:
+    build: rest-api-service
+    environment:
+      REALM_NAME: example
+      AUTH_SERVER_URL: auth-server:8080
+    ports:
+    - "8280:8280"

@@ -14,11 +14,6 @@ target/
 mvnw
 mvnw.cmd
 
-# Ignore Docker related files that are not part of the build context
-docker-compose.yml
-README-docker.md
-.dockerignore
-
 # Ignore other specific files/directories that are not needed for the build
 *.log
 *.iml
