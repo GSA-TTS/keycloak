@@ -8,11 +8,6 @@ COPY . /usr/src/keycloak-project/
 WORKDIR /usr/src/keycloak-project/
 
 RUN echo "Building Keycloak Login.gov Integration Extension"
-RUN echo "This is builiding I swear."
-
-# Initialize and update submodules
-
-RUN git submodule update --init --recursive
 
 # Copy the Maven settings file to the working directory.
 COPY maven-settings.xml /usr/src/keycloak-project/maven-settings.xml
