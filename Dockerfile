@@ -7,8 +7,6 @@ FROM maven:3.9-eclipse-temurin-17 AS builder
 COPY . /usr/src/keycloak-project/
 WORKDIR /usr/src/keycloak-project/
 
-RUN echo "Building Keycloak Login.gov Integration Extension"
-
 # Copy the Maven settings file to the working directory.
 COPY maven-settings.xml /usr/src/keycloak-project/maven-settings.xml
 
