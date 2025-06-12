@@ -98,3 +98,4 @@ quarkus/data/*.db
 .env
 .env.test
 zscaler-cert.pem
+keycloak-login.gov-integration/Dockerfile

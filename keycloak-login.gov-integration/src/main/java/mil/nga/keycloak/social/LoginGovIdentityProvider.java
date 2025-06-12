@@ -1,0 +1,212 @@
+package mil.nga.keycloak.social;
+
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import org.keycloak.models.*;
+
+import org.jboss.logging.Logger;
+import org.keycloak.broker.oidc.OIDCIdentityProvider;
+import org.keycloak.broker.oidc.OIDCIdentityProviderConfig;
+import org.keycloak.broker.provider.AuthenticationRequest;
+import org.keycloak.broker.provider.BrokeredIdentityContext;
+import org.keycloak.broker.provider.IdentityBrokerException;
+import org.keycloak.broker.social.SocialIdentityProvider;
+import org.keycloak.jose.jws.JWSInput;
+import org.keycloak.jose.jws.crypto.RSAProvider;
+import org.keycloak.representations.AccessTokenResponse;
+import org.keycloak.representations.JsonWebToken;
+import mil.nga.keycloak.keys.loader.LoginGovPublicKeyStorageManager;
+
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.core.UriInfo;
+import java.io.IOException;
+import java.security.PublicKey;
+import org.keycloak.services.resources.IdentityBrokerService;
+import org.keycloak.services.resources.RealmsResource;
+
+public class LoginGovIdentityProvider
+        extends OIDCIdentityProvider
+        implements SocialIdentityProvider<OIDCIdentityProviderConfig> {
+
+    public static final String CAC_SUBJECT_ATTR = "subjectDN";
+    public static final String CAC_UUID_ATTR = "cacUID";
+    public static final String X509_PRESENTED_ATTR = "x509_presented";
+
+    public static final String IS_DOD_CAC_TEXT = "OU=DoD";
+    public static final String IS_FED_CAC_TEXT = "O=U.S. Government";
+
+    public static final String EMAIL_SCOPE = "email";
+    public static final String OPENID_SCOPE = "openid";
+    public static final String X509_SCOPE = "x509:subject";
+    public static final String X509_PRESENTED_SCOPE = "x509:presented";
+    public static final String DEFAULT_SCOPE = OPENID_SCOPE + " "
+            + X509_SCOPE + " "
+            + X509_PRESENTED_SCOPE  + " "
+            + EMAIL_SCOPE;
+    private KeycloakSession session = null;
+
+    private static final Logger log = Logger.getLogger(LoginGovIdentityProvider.class);
+
+    public LoginGovIdentityProvider(KeycloakSession session, LoginGovIdentityProviderConfig config) {
+        super(session, config);
+        this.session = session;
+        String defaultScope = config.getDefaultScope();
+
+        if (defaultScope == null || defaultScope.trim().isEmpty()) {
+            config.setDefaultScope(DEFAULT_SCOPE);
+        } else {
+            config.setDefaultScope(defaultScope + " " + DEFAULT_SCOPE);
+        }
+    }
+
+    @Override
+    protected String getDefaultScopes() {
+        return DEFAULT_SCOPE;
+    }
+
+    @Override
+    protected UriBuilder createAuthorizationUrl(AuthenticationRequest request) {
+        UriBuilder uriBuilder = super.createAuthorizationUrl(request);
+
+        LoginGovIdentityProviderConfig config = (LoginGovIdentityProviderConfig) getConfig();
+        uriBuilder.queryParam("acr_values", new Object[] { config.getAcrValues() });
+        logger.debugv("Login.gov Authorization Url: {0}", uriBuilder.toString());
+        return uriBuilder;
+    }
+
+
+    @Override
+    protected BrokeredIdentityContext extractIdentity(AccessTokenResponse tokenResponse, String accessToken,
+            JsonWebToken idToken) throws IOException {
+        BrokeredIdentityContext identityContext = super.extractIdentity(tokenResponse, accessToken, idToken);
+        final String email = identityContext.getEmail();
+
+        /**
+         * Get some custom claims from login.gov so we can interact with the user from
+         * here.
+         */
+        final String x509_subject = (String) idToken.getOtherClaims().get(LoginGovToken.X509_SUBJECT);
+        logger.info("-- x509_subject --");
+        logger.info(x509_subject);
+
+        // String claims = String.join(",", idToken.getOtherClaims().keySet());
+        // logger.info("-- claims --");
+        // logger.info(claims);
+
+        if (idToken.getOtherClaims().containsKey("x509_presented")){
+            String x509_presented = String.valueOf(idToken.getOtherClaims().get("x509_presented"));
+            logger.info("-- x509_presented --");
+            logger.info(x509_presented);
+            identityContext.setUserAttribute(X509_PRESENTED_ATTR, x509_presented);
+        }
+
+        // final String x509_presented = (String) idToken.getOtherClaims().get(LoginGovToken.X509_PRESENTED);
+        // logger.info("-- x509_presented --");
+        // logger.info(x509_presented);
+
+        /**
+         * Set custom attributes from Login.gov so that application are able to read
+         * them.
+         */
+        if (x509_subject != null) {
+            identityContext.setUserAttribute(CAC_SUBJECT_ATTR, x509_subject);
+            identityContext.setUserAttribute(CAC_UUID_ATTR, extractUniqueIdentifierFromNormalizedDN(x509_subject));
+            String extractCN = extractCNFromNormalizedDN(x509_subject);
+            if (!extractCN.equals("")){
+                identityContext.setUsername(extractCNFromNormalizedDN(x509_subject));
+            }
+        }
+
+        if (email == null || email.isEmpty()) {
+            throw new IdentityBrokerException("Unable to determine user email address.");
+        }
+        identityContext.setEmail(email.toLowerCase());
+
+        return identityContext;
+    }
+
+    /**
+     * To avoid deleting users as the only way to capture new/changed values, certain values will be updated on login.
+     * credit: https://stackoverflow.com/questions/57912634/update-keycloak-user-data-based-on-data-present-in-identity-provider-token/58002033#58002033
+     */
+    @Override
+    public void updateBrokeredUser(KeycloakSession session, RealmModel realm, 
+        UserModel user, BrokeredIdentityContext context) {
+        user.setSingleAttribute(X509_PRESENTED_ATTR,context.getUserAttribute(X509_PRESENTED_ATTR));
+    }
+
+    @Override
+    public Response keycloakInitiatedBrowserLogout(KeycloakSession session, UserSessionModel userSession, UriInfo uriInfo, RealmModel realm) {
+        LoginGovIdentityProviderConfig config = (LoginGovIdentityProviderConfig)getConfig();
+
+        if(config.getDeepLogoutValue()) {
+            /**
+             * Due to login.gov no longer accepting id_token_hint (@see: https://developers.login.gov/oidc/#logout) we need
+             * to override the KeyCloak method to ensure that client_id is sent instead of the id_token_hint.
+             *
+             * To be clear the recommended approach is to use id_token_hint per the spec:
+             *  https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+             *
+             * For default / original implementation./
+             * @see https://github.com/keycloak/keycloak/blob/main/services/src/main/java/org/keycloak/broker/oidc/OIDCIdentityProvider.java#L165-L185
+             */
+            if (getConfig().getLogoutUrl() == null || getConfig().getLogoutUrl().trim().equals("")) return null;
+            // Delegate to the parent class's implementation for the actual logout URL construction
+            return super.keycloakInitiatedBrowserLogout(session, userSession, uriInfo, realm);
+
+        } else {
+            /*
+             * Setting dictate that the user should not be logged out of login.gov.
+             * Returning null here means that there is no additional logout redirect.
+             */
+            return null;
+        }
+    }
+
+    /**
+     * Due to the complexity of the card (multiple OU enteries on each card for
+     * example) we are using a very basic implementation currently. The
+     * implementation
+     * will be to simple string out the series of number on the SubjectDN and assume
+     * that is the unique identifier.
+     *
+     * On a PIV:
+     * Subject: C=US, O=U.S. Government, OU=Department of the Interior,
+     * OU=Geological Survey/UID=00000000000000, CN=FIRST_NAME LAST_NAME (Affiliate)
+     *
+     * On a CAC:
+     * Subject: C=US, O=U.S. Government, OU=DoD, OU=PKI, OU=CONTRACTOR,
+     * CN=LAST_NAME.FIRST_NAME.MIDDLE_NAME.0000000000
+     *
+     */
+    private String extractUniqueIdentifierFromNormalizedDN(String normDN) {
+        Pattern pattern = Pattern.compile(".*?(\\d+).*");
+        Matcher matcher = pattern.matcher(normDN);
+        while (matcher.find()) {
+            String UID = matcher.group(1);
+            return UID;
+        }
+        return "";
+    }
+
+    private String extractCNFromNormalizedDN(String normDN) {
+        Pattern pattern = Pattern.compile(".*CN=?(.+[0-9])(?:,|$)");
+        Matcher matcher = pattern.matcher(normDN);
+        while (matcher.find()) {
+            String CN = matcher.group(1);
+            return CN;
+        }
+        return "";
+    }
+
+    private void fireErrorEvent(String message, Throwable throwable) {
+        // Simplified error handling - just log the error
+        if (throwable != null) {
+            logger.error(message, throwable);
+        } else {
+            logger.error(message);
+        }
+    }
+
+}
