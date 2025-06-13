@@ -9,13 +9,11 @@ WORKDIR /usr/src/keycloak-project/
 
 # Copy the Maven settings file to the working directory.
 COPY maven-settings.xml /usr/src/keycloak-project/maven-settings.xml
-
+RUN echo "Using Maven settings file: /usr/src/keycloak-project/maven-settings.xml"
 # Set the working directory to the root of the Keycloak project.
 WORKDIR /usr/src/keycloak-project/
 # Run Maven to clean and package the project.
 # The clean command removes any previously compiled files, ensuring a fresh build.
-
-
 
 # Build the login.gov extension module.
 # The -pl flag specifies the module to build.
