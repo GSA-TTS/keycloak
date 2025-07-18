@@ -1,6 +1,27 @@
 # Login.gov Integration Changelog
 
-This document details the changes made to the Login.gov integration to make it compatible with Keycloak 23.0.6.
+This document details the changes made to the Login.gov integration to make it compatible with different Keycloak versions.
+
+## Changes for Keycloak 26.3.1
+
+### 1. Updated Dependencies in `pom.xml`
+
+- Updated Keycloak version from 23.0.6 to 26.3.1
+- Updated `<keycloak.version>` property to 26.3.1
+
+### 2. Fixed Identity Provider Factory API Changes
+
+- Updated `LoginGovIdentityProviderFactory.parseConfig()` method signature:
+  - Changed parameter from `InputStream inputStream` to `String rawConfig`
+  - Updated `JsonSerialization.readValue()` call to use String parameter instead of InputStream
+  - Removed unused `java.io.InputStream` import
+- This change was required due to API changes in the `IdentityProviderFactory` interface
+
+### 3. Successful Integration Testing
+
+- Verified successful compilation with Keycloak 26.3.1
+- All custom Login.gov integration components compile without errors
+- Build process completes successfully with new Keycloak version
 
 ## Changes for Keycloak 23.0.6
 
