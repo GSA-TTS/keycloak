@@ -21,8 +21,8 @@ WORKDIR /usr/src/keycloak-project/
 # The -pl flag specifies the module to build.
 # The -am flag (alsomake) ensures that any local Maven modules it depends on are also built.
 # -DskipTests is used to speed up the build process by skipping tests.
-# Build the full Keycloak distribution first
-RUN mvn --settings maven-settings.xml clean install -DskipTests -Pdistribution
+# Build just the Keycloak distribution without running full testsuite
+RUN mvn --settings maven-settings.xml clean install -DskipTests -pl quarkus/dist -am
 
 # Build the login.gov extension module
 RUN mvn --settings maven-settings.xml clean package -pl keycloak-login.gov-integration -am -DskipTests
