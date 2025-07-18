@@ -15,15 +15,18 @@
  * limitations under the License.
  */
 
-package org.keycloak.quarkus.runtime.configuration.test;
+package org.keycloak.quarkus.runtime.configuration;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.keycloak.config.LoggingOptions.DEFAULT_LOG_FORMAT;
 import static org.keycloak.config.LoggingOptions.DEFAULT_SYSLOG_OUTPUT;
+import static org.keycloak.config.LoggingOptions.SYSLOG_COUNTING_FRAMING_PROTOCOL_DEPENDENT;
 
 import java.util.Map;
 import java.util.Set;
@@ -31,14 +34,10 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import org.hamcrest.CoreMatchers;
-import org.jboss.logmanager.handlers.AsyncHandler;
 import org.junit.Test;
 import org.keycloak.config.LoggingOptions;
 import org.keycloak.quarkus.runtime.Environment;
 import org.keycloak.quarkus.runtime.cli.PropertyException;
-import org.keycloak.quarkus.runtime.configuration.ConfigArgsConfigSource;
-import org.keycloak.quarkus.runtime.configuration.Configuration;
-
 import io.smallrye.config.SmallRyeConfig;
 
 public class LoggingConfigurationTest extends AbstractConfigurationTest {
@@ -87,7 +86,8 @@ public class LoggingConfigurationTest extends AbstractConfigurationTest {
                 "log-syslog-app-name", "keycloak",
                 "log-syslog-protocol", "tcp",
                 "log-syslog-format", DEFAULT_LOG_FORMAT,
-                "log-syslog-output", DEFAULT_SYSLOG_OUTPUT.toString()
+                "log-syslog-output", DEFAULT_SYSLOG_OUTPUT.toString(),
+                "log-syslog-counting-framing", SYSLOG_COUNTING_FRAMING_PROTOCOL_DEPENDENT
         ));
         assertThat(Configuration.getOptionalKcValue(LoggingOptions.LOG_SYSLOG_MAX_LENGTH).orElse(null), CoreMatchers.nullValue());
 
@@ -97,6 +97,7 @@ public class LoggingConfigurationTest extends AbstractConfigurationTest {
                 "quarkus.log.syslog.syslog-type", "rfc5424",
                 "quarkus.log.syslog.app-name", "keycloak",
                 "quarkus.log.syslog.protocol", "tcp",
+                "quarkus.log.syslog.use-counting-framing", "true",
                 "quarkus.log.syslog.format", DEFAULT_LOG_FORMAT,
                 "quarkus.log.syslog.json.enabled", "false"
         ));
@@ -114,6 +115,7 @@ public class LoggingConfigurationTest extends AbstractConfigurationTest {
                 "KC_LOG_SYSLOG_MAX_LENGTH", "4096",
                 "KC_LOG_SYSLOG_APP_NAME", "keycloak2",
                 "KC_LOG_SYSLOG_PROTOCOL", "udp",
+                "KC_LOG_SYSLOG_COUNTING_FRAMING", "false",
                 "KC_LOG_SYSLOG_FORMAT", "some format",
                 "KC_LOG_SYSLOG_OUTPUT", "json"
         ));
@@ -127,6 +129,7 @@ public class LoggingConfigurationTest extends AbstractConfigurationTest {
                 "log-syslog-max-length", "4096",
                 "log-syslog-app-name", "keycloak2",
                 "log-syslog-protocol", "udp",
+                "log-syslog-counting-framing", "false",
                 "log-syslog-format", "some format",
                 "log-syslog-output", "json"
         ));
@@ -138,6 +141,7 @@ public class LoggingConfigurationTest extends AbstractConfigurationTest {
                 "quarkus.log.syslog.max-length", "4096",
                 "quarkus.log.syslog.app-name", "keycloak2",
                 "quarkus.log.syslog.protocol", "udp",
+                "quarkus.log.syslog.use-counting-framing", "false",
                 "quarkus.log.syslog.format", "some format",
                 "quarkus.log.syslog.json.enabled", "true"
         ));
@@ -167,6 +171,40 @@ public class LoggingConfigurationTest extends AbstractConfigurationTest {
 
         assertConfig("log-syslog-max-length", "512");
         assertExternalConfig("quarkus.log.syslog.max-length", "512");
+    }
+
+    @Test
+    public void syslogCountingFraming() {
+        assertSyslogCountingFramingProtocolDependent("tcp", true);
+        assertSyslogCountingFramingProtocolDependent("udp", false);
+        assertSyslogCountingFramingProtocolDependent("ssl-tcp", true);
+        try {
+            assertSyslogCountingFramingProtocolDependent("error", false);
+            fail("Wrong protocol name should throw an error");
+        } catch (PropertyException expected) {
+            assertThat(expected.getMessage(), containsString("Invalid Syslog protocol: error"));
+        }
+    }
+
+    protected void assertSyslogCountingFramingProtocolDependent(String protocol, boolean expectedCountingFraming) {
+        putEnvVars(Map.of(
+                "KC_LOG", "syslog",
+                "KC_LOG_SYSLOG_PROTOCOL", protocol
+        ));
+
+        initConfig();
+
+        assertConfig(Map.of(
+                "log-syslog-enabled", "true",
+                "log-syslog-protocol", protocol,
+                "log-syslog-counting-framing", SYSLOG_COUNTING_FRAMING_PROTOCOL_DEPENDENT
+        ));
+        assertExternalConfig(Map.of(
+                "quarkus.log.syslog.enable", "true",
+                "quarkus.log.syslog.protocol", protocol,
+                "quarkus.log.syslog.use-counting-framing", Boolean.toString(expectedCountingFraming)
+        ));
+        onAfter();
     }
 
     @Test
@@ -301,6 +339,16 @@ public class LoggingConfigurationTest extends AbstractConfigurationTest {
     @Test
     public void testLogLevelWithUnderscore() {
         ConfigArgsConfigSource.setCliArgs("--log-level=error,reproducer.not_ok:debug");
+        SmallRyeConfig config = createConfig();
+        assertEquals("DEBUG", config.getConfigValue("quarkus.log.category.\"reproducer.not_ok\".level").getValue());
+        Set<String> keys = StreamSupport.stream(config.getPropertyNames().spliterator(), false).collect(Collectors.toSet());
+        assertTrue(keys.contains("quarkus.log.category.\"reproducer.not_ok\".level"));
+    }
+
+    @Test
+    public void testLogLevelWithUnderscoreEnv() {
+        putEnvVar("KC_1", "debug");
+        putEnvVar("KCKEY_1", "log-level-reproducer.not_ok");
         SmallRyeConfig config = createConfig();
         assertEquals("DEBUG", config.getConfigValue("quarkus.log.category.\"reproducer.not_ok\".level").getValue());
         Set<String> keys = StreamSupport.stream(config.getPropertyNames().spliterator(), false).collect(Collectors.toSet());
