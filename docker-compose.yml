@@ -32,7 +32,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: start --optimized
+    command: start --optimized --http-enabled=true
 
 volumes:
   postgres_data:

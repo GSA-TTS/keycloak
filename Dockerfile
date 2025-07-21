@@ -79,8 +79,9 @@ WORKDIR /opt/keycloak
 # Switch to keycloak user
 USER keycloak
 
-# Run Keycloak's build command to optimize and incorporate custom providers with extra features
-RUN /opt/keycloak/bin/kc.sh build --features=preview,admin-fine-grained-authz,dynamic-scopes,client-policies,ciba,par,dpop,step-up-authentication,recovery-codes,update-email,scripts,token-exchange,multi-site,authorization,declarative-ui,device-flow,docker,fips,organization,passkeys,persistent-user-sessions,web-authn
+# Change the build command to include admin console features
+RUN /opt/keycloak/bin/kc.sh build --features=preview,authorization,scripts,token-exchange,admin-fine-grained-authz
+
 
 # Define the entrypoint and default command for running Keycloak
 ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
