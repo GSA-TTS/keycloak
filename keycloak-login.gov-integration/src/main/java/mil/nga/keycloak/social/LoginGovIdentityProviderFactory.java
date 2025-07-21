@@ -9,7 +9,6 @@ import org.keycloak.protocol.oidc.representations.OIDCConfigurationRepresentatio
 import org.keycloak.util.JsonSerialization;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Map;
 
 public class LoginGovIdentityProviderFactory
@@ -35,10 +34,10 @@ public class LoginGovIdentityProviderFactory
 
 
     @Override
-    public Map<String, String> parseConfig(KeycloakSession session, InputStream inputStream) {
+    public Map<String, String> parseConfig(KeycloakSession session, String rawConfig) {
         LoginGovOIDCConfigurationRepresentation rep;
         try {
-            rep = JsonSerialization.readValue(inputStream, LoginGovOIDCConfigurationRepresentation.class);
+            rep = JsonSerialization.readValue(rawConfig, LoginGovOIDCConfigurationRepresentation.class);
         } catch (IOException e) {
             throw new RuntimeException("failed to load openid connect metadata", e);
         }

@@ -19,6 +19,10 @@ WORKDIR /usr/src/keycloak-project/
 # The -pl flag specifies the module to build.
 # The -am flag (alsomake) ensures that any local Maven modules it depends on are also built.
 # -DskipTests is used to speed up the build process by skipping tests.
+# Build just the Keycloak distribution without running full testsuite
+RUN mvn --settings maven-settings.xml clean install -DskipTests -pl quarkus/dist -am
+
+# Build the login.gov extension module
 RUN mvn --settings maven-settings.xml clean package -pl keycloak-login.gov-integration -am -DskipTests
 
 # List the contents of the target directory for login.gov integration for debugging
@@ -30,21 +34,39 @@ RUN ls -l /usr/src/keycloak-project/extensions/keycloak-api-key-demo/api-key-mod
 RUN mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/dashboard-service -DskipTests
 RUN ls -l /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-service/target/
 
-# Stage 2: Prepare the Keycloak runtime
-# Use the official Keycloak image as the base.
-# Note: If you encounter TLS errors pulling this image, it's an environment issue
-# with your Docker setup's trust store for quay.io.
-FROM quay.io/keycloak/keycloak:23.0.6
+# List the Keycloak distribution for debugging
+RUN ls -l /usr/src/keycloak-project/quarkus/dist/target/
 
-# Copy the Login.gov extension JAR built in the 'builder' stage.
-# This copies the JAR from the target directory of the keycloak-login.gov-integration module
-# (e.g., login_gov-VERSION.jar) into the providers directory of the Keycloak installation.
-# Using a wildcard (*) for the version part of the JAR name for flexibility.
+# Stage 2: Build Keycloak from source
+FROM eclipse-temurin:17-jre
+
+# Install required packages
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create keycloak user and group
+RUN groupadd -r keycloak && useradd -r -g keycloak keycloak
+
+# Copy the built Keycloak distribution from the builder stage
+COPY --from=builder /usr/src/keycloak-project/quarkus/dist/target/keycloak-*.tar.gz /tmp/keycloak.tar.gz
+
+# Extract Keycloak and set up directory structure
+RUN cd /opt && \
+    tar -xzf /tmp/keycloak.tar.gz && \
+    mv keycloak-* keycloak && \
+    rm /tmp/keycloak.tar.gz && \
+    chown -R keycloak:keycloak /opt/keycloak
+
+# Copy the Login.gov extension JAR and other custom extensions
 COPY --from=builder /usr/src/keycloak-project/keycloak-login.gov-integration/target/keycloak-login.gov-integration-*.jar /opt/keycloak/providers/
 COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/api-key-module/target/deploy/api-key-module-*.jar /opt/keycloak/providers/
 COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-service/target/dashboard-service-*.jar /opt/keycloak/providers/
 
-# Standard Keycloak environment variables (retained from original Dockerfile)
+# Set ownership of providers directory
+RUN chown -R keycloak:keycloak /opt/keycloak/providers/
+
+# Standard Keycloak environment variables
 ENV KC_HEALTH_ENABLED=true
 ENV KC_METRICS_ENABLED=true
 ENV KC_DB=postgres
@@ -52,11 +74,12 @@ ENV KC_HOSTNAME=localhost
 
 WORKDIR /opt/keycloak
 
-# Run Keycloak's build command. This step is crucial as it optimizes Keycloak
-# and incorporates any new providers (like our login_gov extension) into the server.
-# This command should be run after new providers are added.
-RUN /opt/keycloak/bin/kc.sh build
+# Switch to keycloak user
+USER keycloak
 
-# Define the entrypoint and default command for running Keycloak (retained from original Dockerfile)
+# Run Keycloak's build command to optimize and incorporate custom providers with extra features
+RUN /opt/keycloak/bin/kc.sh build --features=preview,admin-fine-grained-authz,dynamic-scopes,client-policies,ciba,par,dpop,step-up-authentication,recovery-codes,update-email,scripts,token-exchange,multi-site,authorization,declarative-ui,device-flow,docker,fips,organization,passkeys,persistent-user-sessions,web-authn
+
+# Define the entrypoint and default command for running Keycloak
 ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
 CMD ["start", "--optimized"]
