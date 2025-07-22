@@ -36,6 +36,11 @@ RUN ls -l /usr/src/keycloak-project/extensions/keycloak-api-key-demo/api-key-mod
 RUN mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/dashboard-service -DskipTests
 RUN ls -l /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-service/target/
 
+
+# Build the Keycloak distribution
+RUN mvn clean install -Pdistribution
+
+
 # List the Keycloak distribution for debugging
 RUN ls -l /usr/src/keycloak-project/quarkus/dist/target/
 
