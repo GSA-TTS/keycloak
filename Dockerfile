@@ -46,20 +46,31 @@ COPY --from=builder /usr/src/keycloak-project/keycloak-login.gov-integration/tar
 COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/api-key-module/target/deploy/api-key-module-*.jar /opt/keycloak/providers/
 COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-service/target/dashboard-service-*.jar /opt/keycloak/providers/
 
-# Standard Keycloak environment variables (retained from original Dockerfile)
-ENV KC_HEALTH_ENABLED=true
-ENV KC_METRICS_ENABLED=true
-ENV KC_DB=postgres
-ENV KC_HOSTNAME=localhost
-
 WORKDIR /opt/keycloak
 
-# Run Keycloak's build command. This step is crucial as it optimizes Keycloak
-# and incorporates any new providers (like our login_gov extension) into the server.
-# This command should be run after new providers are added.
-# Include the features that are configured in docker-compose.yml
-RUN /opt/keycloak/bin/kc.sh build --features=client-secret-rotation,token-exchange,admin-fine-grained-authz,admin-api,admin,authorization,ciba,client-policies,device-flow,impersonation,login,organization,par,persistent-user-sessions,token-exchange-standard,user-event-metrics
+# --- FIX: The following lines that hardcode the build have been REMOVED ---
+# ENV KC_HEALTH_ENABLED=true
+# ENV KC_METRICS_ENABLED=true
+# ENV KC_DB=postgres
+# ENV KC_HOSTNAME=localhost
+# RUN /opt/keycloak/bin/kc.sh build --features=...
+# ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
+# CMD ["start", "--optimized"]
+# --- END OF REMOVED SECTION ---
 
-# Define the entrypoint and default command for running Keycloak (retained from original Dockerfile)
-ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
+
+# --- FIX: Switch to the root user to modify files ---
+USER root
+
+# Copy the script and make it executable
+COPY entrypoint.sh /opt/keycloak/bin/
+RUN chmod +x /opt/keycloak/bin/entrypoint.sh
+
+# --- FIX: Switch back to the non-root keycloak user for security ---
+USER keycloak
+
+
+ENTRYPOINT ["/opt/keycloak/bin/entrypoint.sh"]
+
+# The default command to run after the build is complete
 CMD ["start", "--optimized"]
