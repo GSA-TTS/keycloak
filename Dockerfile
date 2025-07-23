@@ -58,7 +58,7 @@ WORKDIR /opt/keycloak
 # and incorporates any new providers (like our login_gov extension) into the server.
 # This command should be run after new providers are added.
 # Include the features that are configured in docker-compose.yml
-RUN /opt/keycloak/bin/kc.sh build --features=client-secret-rotation,token-exchange,admin-fine-grained-authz,admin-api,admin,authorization,ciba,client-policies,device-flow,impersonation,kerberos,login,organization,par,persistent-user-sessions,token-exchange-standard,user-event-metrics
+RUN /opt/keycloak/bin/kc.sh build --features=client-secret-rotation,token-exchange,admin-fine-grained-authz,admin-api,admin,authorization,ciba,client-policies,device-flow,impersonation,login,organization,par,persistent-user-sessions,token-exchange-standard,user-event-metrics
 
 # Define the entrypoint and default command for running Keycloak (retained from original Dockerfile)
 ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
