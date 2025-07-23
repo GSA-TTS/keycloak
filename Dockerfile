@@ -36,7 +36,7 @@ RUN ls -l /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-s
 # Use the official Keycloak image as the base.
 # Note: If you encounter TLS errors pulling this image, it's an environment issue
 # with your Docker setup's trust store for quay.io.
-FROM quay.io/keycloak/keycloak:latest
+FROM quay.io/keycloak/keycloak
 
 # Copy the Login.gov extension JAR built in the 'builder' stage.
 # This copies the JAR from the target directory of the keycloak-login.gov-integration module
