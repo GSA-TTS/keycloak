@@ -27,12 +27,13 @@ services:
       KC_HOSTNAME: localhost
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_FEATURES: "token-exchange,admin-fine-grained-authz-v2,admin-api,admin-v2,authorization,ciba,client-policies,device-flow,impersonation,kerberos,login-v2,organization,par,persistent-user-sessions, token-exchange-standard-v2,user-event-metrics,admin-fine-grained-authz,client-secret-rotation"
     ports:
       - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
-    command: start-dev
+    command: start --optimized --http-enabled=true
 
 volumes:
   postgres_data:
