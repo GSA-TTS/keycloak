@@ -59,9 +59,16 @@ WORKDIR /opt/keycloak
 # --- END OF REMOVED SECTION ---
 
 
-# --- FIX: ADD the new entrypoint logic to run the build at startup ---
+# --- FIX: Switch to the root user to modify files ---
+USER root
+
+# Copy the script and make it executable
 COPY entrypoint.sh /opt/keycloak/bin/
 RUN chmod +x /opt/keycloak/bin/entrypoint.sh
+
+# --- FIX: Switch back to the non-root keycloak user for security ---
+USER keycloak
+
 
 ENTRYPOINT ["/opt/keycloak/bin/entrypoint.sh"]
 
