@@ -1,11 +1,17 @@
 #!/bin/bash
-# This is the Keycloak-recommended step for a container
-# It uses runtime variables to create the server configuration.
-/opt/keycloak/bin/kc.sh build
+set -e
 
-# This starts the server you just configured.
-exec "$@"
+echo "Starting Keycloak entrypoint script..."
+
+# Build Keycloak with the features specified in KC_FEATURES environment variable
+if [ -n "$KC_FEATURES" ]; then
+    echo "Building Keycloak with features: $KC_FEATURES"
+    /opt/keycloak/bin/kc.sh build --features="$KC_FEATURES"
+else
+    echo "Building Keycloak with default features..."
+    /opt/keycloak/bin/kc.sh build
 fi
 
-# This starts the server you just configured.
+# Execute the command passed to the container (CMD from Dockerfile)
+echo "Starting Keycloak server..."
 exec "$@"
