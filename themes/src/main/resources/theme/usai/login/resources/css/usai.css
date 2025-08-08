@@ -1,0 +1,469 @@
+/* USAi Theme Styles */
+
+/* Reset and base styles */
+* {
+    box-sizing: border-box;
+}
+
+body.usai-body {
+    font-family: "Source Sans Pro", "Helvetica Neue", "Helvetica", "Roboto", "Arial", sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f0f0f0;
+    color: #1b1b1b;
+    line-height: 1.5;
+}
+
+/* US Government Banner */
+.usa-banner {
+    background-color: #f0f0f0;
+    border-bottom: 1px solid #a9aeb1;
+    font-size: 0.75rem;
+    min-height: 40px;
+}
+
+.usa-banner__inner {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.usa-banner__flag {
+    margin-right: 0.5rem;
+}
+
+.usa-banner__header-flag {
+    width: 16px;
+    height: auto;
+}
+
+.usa-banner__text {
+    flex: 1;
+}
+
+.usa-banner__header-text {
+    margin: 0;
+    color: #1b1b1b;
+    font-weight: 400;
+}
+
+/* Header */
+.usa-header {
+    background-color: #000;
+    color: #fff;
+    padding: 1rem 0;
+}
+
+.usa-nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.usa-navbar {
+    display: flex;
+    align-items: center;
+}
+
+.usa-logo__text {
+    font-style: normal;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.usa-logo__text a {
+    color: #fff;
+    text-decoration: none;
+}
+
+.usa-logo__text a:hover {
+    color: #ddd;
+}
+
+/* Main content */
+.usa-main {
+    flex: 1;
+    padding: 2rem 0;
+}
+
+.usa-section {
+    padding: 2rem 0;
+}
+
+.grid-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.grid-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -0.5rem;
+}
+
+.flex-justify-center {
+    justify-content: center;
+}
+
+.grid-col-12 {
+    flex: 0 0 100%;
+    padding: 0 0.5rem;
+}
+
+@media (min-width: 640px) {
+    .tablet\:grid-col-8 {
+        flex: 0 0 66.666667%;
+    }
+}
+
+@media (min-width: 1024px) {
+    .desktop\:grid-col-6 {
+        flex: 0 0 50%;
+    }
+}
+
+/* Card styles */
+.usa-card.login-card {
+    background-color: #fff;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+}
+
+.usa-card__container {
+    padding: 0;
+}
+
+.usa-card__header {
+    background-color: #fff;
+    padding: 2rem 2rem 1rem;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.usa-card__heading {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+    color: #1b1b1b;
+    text-align: center;
+}
+
+.usa-card__body {
+    padding: 2rem;
+}
+
+/* Agency provider styles */
+.agency-providers {
+    margin: 0;
+}
+
+.agency-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.agency-item {
+    margin-bottom: 0.75rem;
+}
+
+.agency-button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 1rem;
+    background-color: #fff;
+    border: 2px solid #ddd;
+    border-radius: 0.25rem;
+    text-decoration: none;
+    color: #1b1b1b;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+}
+
+.agency-button:hover {
+    background-color: #f8f9fa;
+    border-color: #0066cc;
+    text-decoration: none;
+    color: #1b1b1b;
+}
+
+.agency-button:focus {
+    outline: 2px solid #0066cc;
+    outline-offset: 2px;
+}
+
+.agency-icon {
+    width: 2rem;
+    height: 2rem;
+    margin-right: 1rem;
+    background-color: #0066cc;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.agency-icon-placeholder {
+    width: 2rem;
+    height: 2rem;
+    margin-right: 1rem;
+    background-color: #0066cc;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.agency-name {
+    flex: 1;
+    text-align: left;
+}
+
+.agency-button-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Form styles */
+.usa-form-group {
+    margin-bottom: 1.5rem;
+}
+
+.usa-label {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: #1b1b1b;
+}
+
+.usa-input {
+    display: block;
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #1b1b1b;
+    background-color: #fff;
+    border: 2px solid #ddd;
+    border-radius: 0.25rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.usa-input:focus {
+    border-color: #0066cc;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 102, 204, 0.25);
+}
+
+.usa-button {
+    display: inline-block;
+    font-weight: 700;
+    text-align: center;
+    vertical-align: middle;
+    cursor: pointer;
+    border: 2px solid transparent;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    border-radius: 0.25rem;
+    text-decoration: none;
+    transition: all 0.15s ease-in-out;
+}
+
+.usa-button--primary {
+    color: #fff;
+    background-color: #0066cc;
+    border-color: #0066cc;
+}
+
+.usa-button--primary:hover {
+    color: #fff;
+    background-color: #004c99;
+    border-color: #004c99;
+}
+
+.usa-button--primary:focus {
+    color: #fff;
+    background-color: #004c99;
+    border-color: #004c99;
+    box-shadow: 0 0 0 0.2rem rgba(0, 102, 204, 0.5);
+}
+
+/* Alert styles */
+.usa-alert {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid transparent;
+    border-radius: 0.25rem;
+}
+
+.usa-alert--error {
+    color: #721c24;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}
+
+.usa-alert--warning {
+    color: #856404;
+    background-color: #fff3cd;
+    border-color: #ffeaa7;
+}
+
+.usa-alert--success {
+    color: #155724;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+
+.usa-alert--info {
+    color: #0c5460;
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+}
+
+.usa-alert__body {
+    margin: 0;
+}
+
+.usa-alert__heading {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+/* Footer styles */
+.usa-footer {
+    background-color: #000;
+    color: #fff;
+    padding: 2rem 0;
+    margin-top: auto;
+}
+
+.usa-footer--slim {
+    padding: 1.5rem 0;
+}
+
+.usa-footer__primary-section {
+    padding: 1rem 0;
+}
+
+.usa-footer__primary-container {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.usa-footer__primary-content {
+    flex: 1;
+}
+
+.usa-footer__logo {
+    display: flex;
+    align-items: center;
+}
+
+.usa-footer__logo-heading {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem 0;
+    color: #fff;
+}
+
+.usa-footer__logo-text {
+    font-size: 0.875rem;
+    margin: 0;
+    color: #ccc;
+}
+
+.usa-footer__address {
+    font-style: normal;
+}
+
+.usa-footer__contact-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.usa-footer__contact-link {
+    color: #ccc;
+    text-decoration: none;
+    font-size: 0.875rem;
+}
+
+.usa-footer__contact-link:hover {
+    color: #fff;
+    text-decoration: underline;
+}
+
+/* Responsive grid classes */
+@media (min-width: 480px) {
+    .mobile-lg\:grid-col-4 {
+        flex: 0 0 33.333333%;
+    }
+    
+    .mobile-lg\:grid-col-8 {
+        flex: 0 0 66.666667%;
+    }
+    
+    .mobile-lg\:grid-col-12 {
+        flex: 0 0 100%;
+    }
+}
+
+@media (min-width: 1024px) {
+    .desktop\:grid-col-auto {
+        flex: 0 0 auto;
+    }
+}
+
+.grid-gap {
+    margin: 0 -0.5rem;
+}
+
+.grid-gap-2 {
+    margin: 0 -1rem;
+}
+
+.grid-col-auto {
+    flex: 0 0 auto;
+    padding: 0 0.5rem;
+}
+
+/* Utility classes */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Override Keycloak default styles */
+#kc-form-login {
+    margin: 0;
+}
+
+#kc-form-wrapper {
+    margin: 0;
+}
+
+/* Ensure proper spacing */
+.checkbox {
+    margin-bottom: 1rem;
+}
+
+.checkbox label {
+    font-weight: 400;
+    margin-bottom: 0;
+}
