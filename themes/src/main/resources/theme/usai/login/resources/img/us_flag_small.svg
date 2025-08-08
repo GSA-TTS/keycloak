@@ -1,0 +1,86 @@
+<svg width="16" height="11" viewBox="0 0 16 11" xmlns="http://www.w3.org/2000/svg">
+  <!-- Red stripes -->
+  <rect width="16" height="11" fill="#B22234"/>
+  
+  <!-- White stripes -->
+  <rect width="16" height="0.85" y="0.85" fill="white"/>
+  <rect width="16" height="0.85" y="2.55" fill="white"/>
+  <rect width="16" height="0.85" y="4.25" fill="white"/>
+  <rect width="16" height="0.85" y="5.95" fill="white"/>
+  <rect width="16" height="0.85" y="7.65" fill="white"/>
+  <rect width="16" height="0.85" y="9.35" fill="white"/>
+  
+  <!-- Blue canton -->
+  <rect width="6.4" height="5.95" fill="#3C3B6E"/>
+  
+  <!-- Stars (simplified as small circles) -->
+  <g fill="white">
+    <!-- Row 1 -->
+    <circle cx="0.8" cy="0.7" r="0.15"/>
+    <circle cx="1.6" cy="0.7" r="0.15"/>
+    <circle cx="2.4" cy="0.7" r="0.15"/>
+    <circle cx="3.2" cy="0.7" r="0.15"/>
+    <circle cx="4.0" cy="0.7" r="0.15"/>
+    <circle cx="4.8" cy="0.7" r="0.15"/>
+    
+    <!-- Row 2 -->
+    <circle cx="1.2" cy="1.2" r="0.15"/>
+    <circle cx="2.0" cy="1.2" r="0.15"/>
+    <circle cx="2.8" cy="1.2" r="0.15"/>
+    <circle cx="3.6" cy="1.2" r="0.15"/>
+    <circle cx="4.4" cy="1.2" r="0.15"/>
+    
+    <!-- Row 3 -->
+    <circle cx="0.8" cy="1.7" r="0.15"/>
+    <circle cx="1.6" cy="1.7" r="0.15"/>
+    <circle cx="2.4" cy="1.7" r="0.15"/>
+    <circle cx="3.2" cy="1.7" r="0.15"/>
+    <circle cx="4.0" cy="1.7" r="0.15"/>
+    <circle cx="4.8" cy="1.7" r="0.15"/>
+    
+    <!-- Row 4 -->
+    <circle cx="1.2" cy="2.2" r="0.15"/>
+    <circle cx="2.0" cy="2.2" r="0.15"/>
+    <circle cx="2.8" cy="2.2" r="0.15"/>
+    <circle cx="3.6" cy="2.2" r="0.15"/>
+    <circle cx="4.4" cy="2.2" r="0.15"/>
+    
+    <!-- Row 5 -->
+    <circle cx="0.8" cy="2.7" r="0.15"/>
+    <circle cx="1.6" cy="2.7" r="0.15"/>
+    <circle cx="2.4" cy="2.7" r="0.15"/>
+    <circle cx="3.2" cy="2.7" r="0.15"/>
+    <circle cx="4.0" cy="2.7" r="0.15"/>
+    <circle cx="4.8" cy="2.7" r="0.15"/>
+    
+    <!-- Row 6 -->
+    <circle cx="1.2" cy="3.2" r="0.15"/>
+    <circle cx="2.0" cy="3.2" r="0.15"/>
+    <circle cx="2.8" cy="3.2" r="0.15"/>
+    <circle cx="3.6" cy="3.2" r="0.15"/>
+    <circle cx="4.4" cy="3.2" r="0.15"/>
+    
+    <!-- Row 7 -->
+    <circle cx="0.8" cy="3.7" r="0.15"/>
+    <circle cx="1.6" cy="3.7" r="0.15"/>
+    <circle cx="2.4" cy="3.7" r="0.15"/>
+    <circle cx="3.2" cy="3.7" r="0.15"/>
+    <circle cx="4.0" cy="3.7" r="0.15"/>
+    <circle cx="4.8" cy="3.7" r="0.15"/>
+    
+    <!-- Row 8 -->
+    <circle cx="1.2" cy="4.2" r="0.15"/>
+    <circle cx="2.0" cy="4.2" r="0.15"/>
+    <circle cx="2.8" cy="4.2" r="0.15"/>
+    <circle cx="3.6" cy="4.2" r="0.15"/>
+    <circle cx="4.4" cy="4.2" r="0.15"/>
+    
+    <!-- Row 9 -->
+    <circle cx="0.8" cy="4.7" r="0.15"/>
+    <circle cx="1.6" cy="4.7" r="0.15"/>
+    <circle cx="2.4" cy="4.7" r="0.15"/>
+    <circle cx="3.2" cy="4.7" r="0.15"/>
+    <circle cx="4.0" cy="4.7" r="0.15"/>
+    <circle cx="4.8" cy="4.7" r="0.15"/>
+  </g>
+</svg>

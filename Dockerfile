@@ -48,6 +48,11 @@ RUN --mount=type=cache,target=/root/.m2 \
     mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/dashboard-service -DskipTests
 RUN ls -l /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-service/target/
 
+# Build the themes module to compile the usai theme
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn --settings maven-settings.xml clean package -f themes -DskipTests
+RUN ls -l /usr/src/keycloak-project/themes/target/classes/theme/
+
 # Stage 2: Prepare the Keycloak runtime
 # Use the official Keycloak image as the base.
 # Note: If you encounter TLS errors pulling this image, it's an environment issue
@@ -61,6 +66,9 @@ FROM quay.io/keycloak/keycloak:23.0.6
 COPY --from=builder /usr/src/keycloak-project/keycloak-login.gov-integration/target/keycloak-login.gov-integration-*.jar /opt/keycloak/providers/
 COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/api-key-module/target/deploy/api-key-module-*.jar /opt/keycloak/providers/
 COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-service/target/dashboard-service-*.jar /opt/keycloak/providers/
+
+# Copy the custom usai theme from the compiled location
+COPY --from=builder /usr/src/keycloak-project/themes/target/classes/theme/ /opt/keycloak/themes/
 
 # Standard Keycloak environment variables (retained from original Dockerfile)
 ENV KC_HEALTH_ENABLED=true

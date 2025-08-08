@@ -27,6 +27,7 @@ services:
       KC_HOSTNAME: localhost
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_FEATURES: "token-exchange,admin-fine-grained-authz,admin-api,admin,authorization,ciba,client-policies,device-flow,impersonation,kerberos,login,organization,par,persistent-user-sessions,token-exchange-standard,user-event-metrics,client-secret-rotation"
     ports:
       - "8080:8080"
     depends_on:
