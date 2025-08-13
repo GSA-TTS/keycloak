@@ -82,7 +82,7 @@
         <jboss.dmr.version>1.5.1.Final</jboss.dmr.version>
 
         <bouncycastle.pkixfips.version>2.0.7</bouncycastle.pkixfips.version>
-        <bouncycastle.bcfips.version>2.0.0</bouncycastle.bcfips.version>
+        <bouncycastle.bcfips.version>2.1.0</bouncycastle.bcfips.version>
         <bouncycastle.bctls-fips.version>2.0.19</bouncycastle.bctls-fips.version>
         <bouncycastle.bcutilfips.version>2.0.3</bouncycastle.bcutilfips.version>
 
