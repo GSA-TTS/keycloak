@@ -9,9 +9,12 @@ body.usai-body {
     font-family: "Source Sans Pro", "Helvetica Neue", "Helvetica", "Roboto", "Arial", sans-serif;
     margin: 0;
     padding: 0;
-    background-color: #f0f0f0;
+    background-color: #e6e6fa;
     color: #1b1b1b;
     line-height: 1.5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
 /* US Government Banner */
@@ -86,10 +89,14 @@ body.usai-body {
 .usa-main {
     flex: 1;
     padding: 2rem 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .usa-section {
     padding: 2rem 0;
+    width: 100%;
 }
 
 .grid-container {
@@ -129,8 +136,11 @@ body.usai-body {
 .usa-card.login-card {
     background-color: #fff;
     border-radius: 0.5rem;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     overflow: hidden;
+    max-width: 400px;
+    width: 100%;
+    margin: 0 auto;
 }
 
 .usa-card__container {
@@ -140,19 +150,26 @@ body.usai-body {
 .usa-card__header {
     background-color: #fff;
     padding: 2rem 2rem 1rem;
-    border-bottom: 1px solid #e5e5e5;
+    border-bottom: none;
 }
 
 .usa-card__heading {
-    font-size: 1.5rem;
+    font-size: 2rem;
     font-weight: 700;
-    margin: 0;
+    margin: 0 0 1rem 0;
     color: #1b1b1b;
-    text-align: center;
+    text-align: left;
 }
 
 .usa-card__body {
-    padding: 2rem;
+    padding: 0 2rem 2rem;
+}
+
+.login-description {
+    font-size: 1rem;
+    color: #4a4a4a;
+    margin: 0 0 2rem 0;
+    line-height: 1.5;
 }
 
 /* Agency provider styles */
@@ -237,9 +254,10 @@ body.usai-body {
 
 .usa-label {
     display: block;
-    font-weight: 700;
+    font-weight: 400;
     margin-bottom: 0.5rem;
-    color: #1b1b1b;
+    color: #4a4a4a;
+    font-size: 0.875rem;
 }
 
 .usa-input {
@@ -250,49 +268,63 @@ body.usai-body {
     line-height: 1.5;
     color: #1b1b1b;
     background-color: #fff;
-    border: 2px solid #ddd;
-    border-radius: 0.25rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
     transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
 .usa-input:focus {
-    border-color: #0066cc;
+    border-color: #3b82f6;
     outline: 0;
-    box-shadow: 0 0 0 0.2rem rgba(0, 102, 204, 0.25);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .usa-button {
     display: inline-block;
-    font-weight: 700;
+    font-weight: 500;
     text-align: center;
     vertical-align: middle;
     cursor: pointer;
-    border: 2px solid transparent;
+    border: 1px solid transparent;
     padding: 0.75rem 1.5rem;
     font-size: 1rem;
     line-height: 1.5;
-    border-radius: 0.25rem;
+    border-radius: 0.375rem;
     text-decoration: none;
     transition: all 0.15s ease-in-out;
+    width: 100%;
 }
 
 .usa-button--primary {
     color: #fff;
-    background-color: #0066cc;
-    border-color: #0066cc;
+    background-color: #000;
+    border-color: #000;
 }
 
 .usa-button--primary:hover {
     color: #fff;
-    background-color: #004c99;
-    border-color: #004c99;
+    background-color: #333;
+    border-color: #333;
 }
 
 .usa-button--primary:focus {
     color: #fff;
-    background-color: #004c99;
-    border-color: #004c99;
-    box-shadow: 0 0 0 0.2rem rgba(0, 102, 204, 0.5);
+    background-color: #333;
+    border-color: #333;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.25);
+}
+
+/* Login footer text */
+.login-footer-text {
+    margin-top: 1.5rem;
+    text-align: center;
+}
+
+.login-footer-text p {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin: 0;
+    line-height: 1.4;
 }
 
 /* Alert styles */
