@@ -50,8 +50,8 @@ COPY --from=builder /usr/src/keycloak-project/keycloak-login.gov-integration/tar
 COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/api-key-module/target/deploy/api-key-module-*.jar /opt/keycloak/providers/
 COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-service/target/dashboard-service-*.jar /opt/keycloak/providers/
 
-# Copy the custom usai theme from the compiled location
-COPY --from=builder /usr/src/keycloak-project/themes/target/classes/theme/ /opt/keycloak/themes/
+# Copy only our custom usai theme, not overriding the entire themes directory
+COPY --from=builder /usr/src/keycloak-project/themes/target/classes/theme/usai/ /opt/keycloak/themes/usai/
 
 WORKDIR /opt/keycloak
 
