@@ -321,10 +321,86 @@ body.usai-body {
 }
 
 .login-footer-text p {
+    color: #666;
     font-size: 0.875rem;
-    color: #6b7280;
-    margin: 0;
     line-height: 1.4;
+    margin: 0;
+}
+
+/* Identity Provider Styles */
+#kc-social-providers {
+    margin-bottom: 2rem;
+}
+
+#kc-social-providers hr {
+    border: none;
+    border-top: 1px solid #ddd;
+    margin: 1.5rem 0 1rem 0;
+}
+
+#kc-social-providers h4 {
+    color: #333;
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+    text-align: center;
+}
+
+#kc-social-providers ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+#kc-social-providers li {
+    margin-bottom: 0.75rem;
+}
+
+#kc-social-providers a {
+    display: block;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background-color: #0066cc;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-weight: 500;
+    text-align: center;
+    transition: background-color 0.2s ease;
+}
+
+#kc-social-providers a:hover {
+    background-color: #0052a3;
+    text-decoration: none;
+}
+
+#kc-social-providers a:focus {
+    outline: 2px solid #ffbf47;
+    outline-offset: 2px;
+}
+
+/* Login.gov specific styling */
+#kc-social-providers a[id*="login-gov"] {
+    background-color: #d83933;
+}
+
+#kc-social-providers a[id*="login-gov"]:hover {
+    background-color: #b8302a;
+}
+
+/* Username/Password form section */
+#kc-username-password-form hr {
+    border: none;
+    border-top: 1px solid #ddd;
+    margin: 1.5rem 0 1rem 0;
+}
+
+#kc-username-password-form h4 {
+    color: #333;
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+    text-align: center;
 }
 
 /* Alert styles */
