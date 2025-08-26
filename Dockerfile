@@ -69,9 +69,20 @@ WORKDIR /opt/keycloak
 # --- FIX: Switch to the root user to modify files ---
 USER root
 
+# Copy the WebAuthn configuration scripts
+COPY webauthn-config/ /opt/keycloak/webauthn-config/
+RUN chmod +x /opt/keycloak/webauthn-config/*.sh
+
 # Copy the script and make it executable
 COPY entrypoint.sh /opt/keycloak/bin/
 RUN chmod +x /opt/keycloak/bin/entrypoint.sh
+
+# Install jq for JSON processing (required by WebAuthn scripts)
+# Try different package managers available in UBI minimal
+RUN (microdnf install -y jq && microdnf clean all) || \
+    (yum install -y jq && yum clean all) || \
+    (dnf install -y jq && dnf clean all) || \
+    echo "Warning: Could not install jq - WebAuthn configuration may fail"
 
 # --- FIX: Switch back to the non-root keycloak user for security ---
 USER keycloak

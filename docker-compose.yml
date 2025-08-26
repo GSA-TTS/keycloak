@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   postgres:
     image: postgres:15
@@ -27,7 +25,8 @@ services:
       KC_HOSTNAME: localhost
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_FEATURES: "token-exchange,admin-fine-grained-authz,admin-api,admin,authorization,ciba,client-policies,device-flow,impersonation,kerberos,login,organization,par,persistent-user-sessions,token-exchange-standard,user-event-metrics,client-secret-rotation"
+      KC_FEATURES: "token-exchange,admin-fine-grained-authz,admin-api,admin,authorization,ciba,client-policies,device-flow,impersonation,kerberos,login,organization,par,persistent-user-sessions,token-exchange-standard,user-event-metrics,client-secret-rotation,account-api,web-authn,passkeys"
+      SKIP_WEBAUTHN_CONFIG: "true"
     ports:
       - "8080:8080"
     depends_on:
