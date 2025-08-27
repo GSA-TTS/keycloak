@@ -31,10 +31,26 @@
                                             ${kcSanitize(messagesPerField.get('username'))?no_esc}
                                         </span>
                                     </#if>
-                                </div>
-                            </#if>
+                            </div>
+                        </#if>
 
-                            <div class="${properties.kcFormGroupClass!} ${properties.kcFormSettingClass!}">
+                        <div class="${properties.kcFormGroupClass!}">
+                            <label for="password" class="usa-label">${msg("password")}</label>
+
+                            <div class="${properties.kcInputGroup!}" dir="ltr">
+                                <input tabindex="2" id="password" class="usa-input" name="password" type="password" autocomplete="current-password"
+                                       aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
+                                />
+                            </div>
+
+                            <#if messagesPerField.existsError('password')>
+                                <span id="input-error-password" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">
+                                    ${kcSanitize(messagesPerField.get('password'))?no_esc}
+                                </span>
+                            </#if>
+                        </div>
+
+                        <div class="${properties.kcFormGroupClass!} ${properties.kcFormSettingClass!}">
                                 <div id="kc-form-options">
                                     <#if realm.rememberMe && !usernameHidden??>
                                         <div class="usa-checkbox">

@@ -1,0 +1,4 @@
+{
+    "sonarQubeUri": "https://sonarqube-ce.prod.core.mcaas.fcs.gsa.gov",
+    "projectKey": "aigov-core-keycloak"
+}

@@ -40,22 +40,35 @@ wait_for_keycloak() {
 
 # Function to configure WebAuthn
 configure_webauthn() {
-    echo "Configuring WebAuthn realm..."
+    echo "Configuring WebAuthn for realms..."
     
     # Set environment variables for the configuration script
+    export KEYCLOAK_HOME="/opt/keycloak"
     export KCADM="/opt/keycloak/bin/kcadm.sh"
-    export HOST_FOR_KCADM="localhost"
+    export HOST_FOR_KCADM="localhost:8080"
     export KEYCLOAK_USER="${KEYCLOAK_ADMIN:-admin}"
     export KEYCLOAK_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD:-admin}"
     
     # Change to the webauthn-config directory
     cd /opt/keycloak/webauthn-config
     
-    # Run the WebAuthn configuration
-    if ./keycloak-configuration.sh; then
-        echo "WebAuthn configuration completed successfully!"
+    # Configure WebAuthn for specified realms or default realm
+    if [ -n "$WEBAUTHN_REALMS" ]; then
+        # Configure for specified realms (comma-separated)
+        IFS=',' read -ra REALM_ARRAY <<< "$WEBAUTHN_REALMS"
+        for realm in "${REALM_ARRAY[@]}"; do
+            realm=$(echo "$realm" | xargs)  # trim whitespace
+            echo "Configuring WebAuthn for realm: $realm"
+            if ./configure-webauthn-realm.sh "$realm"; then
+                echo "WebAuthn configuration completed for realm: $realm"
+            else
+                echo "WebAuthn configuration failed for realm: $realm, continuing..."
+            fi
+        done
     else
-        echo "WebAuthn configuration failed, but continuing with startup..."
+        echo "No WEBAUTHN_REALMS specified, skipping automatic WebAuthn configuration"
+        echo "To configure WebAuthn for a realm, set WEBAUTHN_REALMS environment variable"
+        echo "Example: WEBAUTHN_REALMS=myrealm,anotherrealm"
     fi
     
     # Return to the original directory

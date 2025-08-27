@@ -1,0 +1,5 @@
+🔐 Testing WebAuthn Implementation for USAI Theme
+==================================================
+1. Checking WebAuthn Template Files...
+-------------------------------------
+[0;32m✓[0m Template exists: webauthn-authenticate.ftl

@@ -1,232 +1,257 @@
-# WebAuthn Docker Setup for USAI Keycloak
+# WebAuthn Docker Setup Guide
 
-This document describes the automated WebAuthn configuration that is built into the Docker container for the USAI Keycloak setup.
+This guide explains how to use WebAuthn authentication with the Keycloak Docker container.
 
-## Overview
+## Docker Container Features
 
-The Docker container now automatically:
-1. Builds Keycloak with WebAuthn preview features enabled
-2. Installs the WebAuthn configuration scripts
-3. Configures a `usai-webauthn` realm with passwordless authentication
-4. Applies the USAI theme with the modified login form (no username/password fields)
+The Docker container includes:
+- **WebAuthn Configuration Scripts**: Automatically configure WebAuthn for any realm
+- **USAI Theme**: Pre-installed with WebAuthn support
+- **Preview Features**: WebAuthn, passkeys, and account-api enabled by default
+- **Automatic Configuration**: Optional automatic WebAuthn setup on container startup
 
-## What Happens Automatically
+## Environment Variables
 
-When you start the container with `docker-compose up`, the following occurs:
+### WebAuthn Configuration
+- `WEBAUTHN_REALMS`: Comma-separated list of realms to configure WebAuthn for
+- `SKIP_WEBAUTHN_CONFIG`: Set to any value to skip automatic WebAuthn configuration
 
-### 1. Container Build
-- WebAuthn configuration scripts are copied into the container
-- `jq` JSON processor is installed for script functionality
-- All scripts are made executable
+### Keycloak Admin
+- `KEYCLOAK_ADMIN`: Admin username (default: admin)
+- `KEYCLOAK_ADMIN_PASSWORD`: Admin password (default: admin)
 
-### 2. Keycloak Startup
-- Keycloak builds with WebAuthn preview features: `account2`, `account_api`
-- Server starts in the background
-- Entrypoint script waits for Keycloak to be ready
+### Keycloak Features
+- `KC_FEATURES`: Override default features (default: "account-api,web-authn,passkeys")
 
-### 3. Automatic WebAuthn Configuration
-- Creates `usai-webauthn` realm
-- Configures WebAuthn authentication flow with:
-  - Passwordless authentication (primary)
-  - Password + second factor (fallback)
-  - Cookie-based SSO
-- Sets up WebAuthn policies for `usai.gov` domain
-- Creates test user: `testuser` (password: `testuser`)
-- Applies USAI theme to the realm
+## Usage Examples
 
-## Quick Start
+### Basic Usage with Automatic WebAuthn Configuration
 
 ```bash
-# Start the services
-docker-compose up -d
-
-# Wait for startup to complete (about 2-3 minutes)
-docker-compose logs -f keycloak
-
-# Access the realm
-open http://localhost:8080/realms/usai-webauthn/account
+docker run -d \
+  --name keycloak-webauthn \
+  -p 8080:8080 \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=admin \
+  -e WEBAUTHN_REALMS=myrealm,testrealm \
+  your-keycloak-image:latest
 ```
 
-## Accessing the WebAuthn Realm
-
-### Admin Console
-- URL: http://localhost:8080/admin/
-- Username: `admin`
-- Password: `admin`
-- Navigate to: `usai-webauthn` realm
-
-### User Login
-- URL: http://localhost:8080/realms/usai-webauthn/protocol/openid-connect/auth?client_id=usai-client&response_type=code&redirect_uri=http://localhost:8080
-- Test user: `testuser` / `testuser`
-- Will be prompted to register WebAuthn security key on first login
-
-### Account Management
-- URL: http://localhost:8080/realms/usai-webauthn/account
-- Users can manage their security keys here
-
-## Configuration Details
-
-### Environment Variables
-
-The following environment variables control the WebAuthn setup:
+### Docker Compose Example
 
 ```yaml
-# In docker-compose.yml
-environment:
-  KEYCLOAK_ADMIN: admin                    # Admin username
-  KEYCLOAK_ADMIN_PASSWORD: admin           # Admin password
-  KC_FEATURES: "...,account2,account_api"  # Includes WebAuthn features
-  SKIP_WEBAUTHN_CONFIG: ""                 # Set to skip auto-config
+version: '3.8'
+services:
+  keycloak:
+    image: your-keycloak-image:latest
+    ports:
+      - "8080:8080"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      WEBAUTHN_REALMS: myrealm,production
+      KC_HOSTNAME: localhost
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: password
+    depends_on:
+      - postgres
+    
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
 ```
 
-### WebAuthn Realm Configuration
+### Manual Configuration (Skip Automatic Setup)
 
-The `usai-webauthn` realm includes:
-
-- **Authentication Flow**: `Browser-WebAuthn-USAI`
-  - Cookie (SSO)
-  - Username form
-  - WebAuthn passwordless OR password + 2FA
-- **WebAuthn Policies**:
-  - Relying Party: "USAI"
-  - RP ID: "usai.gov"
-  - User verification required for passwordless
-  - Signature algorithms: ES256, RS256
-- **Theme**: USAI custom theme (no username/password form)
-- **Client**: `usai-client` configured for USAI domains
-
-### Files Added to Container
-
-```
-/opt/keycloak/webauthn-config/
-├── keycloak-configuration.sh          # Main configuration script
-├── keycloak-configuration-helpers.sh  # Helper functions
-├── realm_master.sh                    # Master realm config
-├── realm_usai_webauthn.sh            # WebAuthn realm config
-├── setup.sh                          # Interactive setup (not used in Docker)
-└── README.md                         # Documentation
+```bash
+docker run -d \
+  --name keycloak-manual \
+  -p 8080:8080 \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=admin \
+  -e SKIP_WEBAUTHN_CONFIG=true \
+  your-keycloak-image:latest
 ```
 
-## Customization
-
-### Skipping Auto-Configuration
-
-To skip the automatic WebAuthn configuration:
-
-```yaml
-# In docker-compose.yml
-environment:
-  SKIP_WEBAUTHN_CONFIG: "true"
-```
-
-### Manual Configuration
-
-If you skip auto-configuration, you can run it manually:
+Then configure WebAuthn manually:
 
 ```bash
 # Enter the container
-docker-compose exec keycloak bash
+docker exec -it keycloak-manual bash
 
-# Run the configuration
+# Configure WebAuthn for a specific realm
 cd /opt/keycloak/webauthn-config
-export KCADM="/opt/keycloak/bin/kcadm.sh"
-export HOST_FOR_KCADM="localhost"
-export KEYCLOAK_USER="admin"
-export KEYCLOAK_PASSWORD="admin"
-./keycloak-configuration.sh
+./configure-webauthn-realm.sh YOUR_REALM_NAME
 ```
 
-### Modifying the Configuration
+## Container Startup Process
 
-To customize the WebAuthn setup:
+1. **Build Phase**: Keycloak builds with WebAuthn features enabled
+2. **Start Phase**: Keycloak server starts in background
+3. **Health Check**: Wait for Keycloak to be ready
+4. **WebAuthn Configuration**: Automatically configure specified realms (if `WEBAUTHN_REALMS` is set)
+5. **Ready**: Container is ready for use
 
-1. Edit the scripts in `webauthn-config/`
-2. Rebuild the container: `docker-compose build`
-3. Restart: `docker-compose up -d`
+## Logs and Monitoring
+
+### View Container Logs
+```bash
+docker logs keycloak-webauthn
+```
+
+### Monitor WebAuthn Configuration
+```bash
+# Follow logs during startup
+docker logs -f keycloak-webauthn
+
+# Look for these log messages:
+# "Configuring WebAuthn for realm: myrealm"
+# "WebAuthn configuration completed for realm: myrealm"
+```
+
+### Health Check
+```bash
+# Check if Keycloak is ready
+curl http://localhost:8080/health/ready
+
+# Check if WebAuthn is configured
+curl -s http://localhost:8080/realms/YOUR_REALM/.well-known/openid_configuration | jq .
+```
 
 ## Troubleshooting
 
-### Check Container Logs
-
-```bash
-# View all logs
-docker-compose logs keycloak
-
-# Follow logs in real-time
-docker-compose logs -f keycloak
-
-# Check for WebAuthn configuration messages
-docker-compose logs keycloak | grep -i webauthn
-```
-
 ### Common Issues
 
-1. **Configuration fails**: Check that Keycloak is fully started before configuration runs
-2. **WebAuthn not working**: Ensure browser supports WebAuthn (Chrome recommended)
-3. **Theme not applied**: Verify USAI theme files are properly copied during build
-
-### Manual Verification
-
-```bash
-# Check if realm exists
-curl -s http://localhost:8080/realms/usai-webauthn/.well-known/openid_configuration
-
-# Check WebAuthn configuration
-docker-compose exec keycloak /opt/keycloak/bin/kcadm.sh get realms/usai-webauthn --fields webAuthnPolicyRpId
-```
-
-## Security Considerations
-
-### Production Deployment
-
-For production use:
-
-1. **Change default passwords**:
-   ```yaml
-   environment:
-     KEYCLOAK_ADMIN: your-admin-user
-     KEYCLOAK_ADMIN_PASSWORD: your-secure-password
+1. **WebAuthn Configuration Fails**
+   ```bash
+   # Check if jq is installed in container
+   docker exec keycloak-webauthn which jq
+   
+   # Check realm exists
+   docker exec keycloak-webauthn /opt/keycloak/bin/kcadm.sh get realms --fields realm
    ```
 
-2. **Use HTTPS**:
-   - WebAuthn requires HTTPS in production
-   - Configure proper SSL certificates
+2. **Container Won't Start**
+   ```bash
+   # Check logs for build errors
+   docker logs keycloak-webauthn
+   
+   # Verify environment variables
+   docker exec keycloak-webauthn env | grep KEYCLOAK
+   ```
 
-3. **Update redirect URIs**:
-   - Modify `realm_usai_webauthn.sh` to use production URLs
-   - Remove localhost redirects
+3. **WebAuthn Not Working**
+   ```bash
+   # Verify HTTPS (required for WebAuthn)
+   # Check browser compatibility
+   # Ensure security key is FIDO2 compatible
+   ```
 
-4. **Database security**:
-   - Use external PostgreSQL with proper credentials
-   - Enable SSL for database connections
+### Debug Mode
 
-### WebAuthn Security
+Run container with debug output:
 
-- User verification is required for passwordless authentication
-- Security keys are bound to the `usai.gov` domain
-- Backup authentication methods (password + OTP) are available
-- Users should register multiple security keys for redundancy
+```bash
+docker run -d \
+  --name keycloak-debug \
+  -p 8080:8080 \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=admin \
+  -e WEBAUTHN_REALMS=myrealm \
+  -e KC_LOG_LEVEL=DEBUG \
+  your-keycloak-image:latest
+```
 
-## Integration with Existing Setup
+### Manual WebAuthn Configuration
 
-This WebAuthn configuration works seamlessly with:
+If automatic configuration fails, configure manually:
 
-- ✅ **USAI Theme**: Custom login theme with removed username/password form
-- ✅ **Login.gov Integration**: Can coexist with other identity providers
-- ✅ **API Key Demo**: Other extensions continue to work
-- ✅ **Custom Messages**: Identity provider labels are customized
+```bash
+# Enter container
+docker exec -it keycloak-webauthn bash
 
-## Browser Compatibility
+# Set environment variables
+export KEYCLOAK_HOME="/opt/keycloak"
+export HOST_FOR_KCADM="localhost:8080"
+export KEYCLOAK_USER="admin"
+export KEYCLOAK_PASSWORD="admin"
 
-WebAuthn works best with:
-- **Chrome/Chromium** (recommended)
-- **Firefox** (good support)
-- **Safari** (limited support)
-- **Edge** (good support)
+# Configure WebAuthn
+cd /opt/keycloak/webauthn-config
+./configure-webauthn-realm.sh YOUR_REALM_NAME
+```
 
-## References
+## Production Considerations
 
-- [Keycloak WebAuthn Documentation](https://www.keycloak.org/docs/latest/server_admin/#webauthn)
-- [WebAuthn Specification](https://www.w3.org/TR/webauthn-2/)
-- [FIDO Alliance](https://fidoalliance.org/)
-- [WebAuthn Browser Support](https://caniuse.com/webauthn)
+### Security
+- Use strong admin passwords
+- Enable HTTPS (required for WebAuthn)
+- Update relying party ID from "usai.gov" to your domain
+- Use secrets management for sensitive environment variables
+
+### Performance
+- Use external database (PostgreSQL recommended)
+- Configure appropriate resource limits
+- Enable health checks and monitoring
+
+### Scaling
+- Use external session storage for clustering
+- Configure load balancer with sticky sessions
+- Ensure consistent WebAuthn configuration across instances
+
+## Example Production Docker Compose
+
+```yaml
+version: '3.8'
+services:
+  keycloak:
+    image: your-keycloak-image:latest
+    ports:
+      - "8080:8080"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD_FILE: /run/secrets/keycloak_admin_password
+      WEBAUTHN_REALMS: production
+      KC_HOSTNAME: auth.yourdomain.com
+      KC_HOSTNAME_STRICT: true
+      KC_PROXY: edge
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD_FILE: /run/secrets/db_password
+      KC_HEALTH_ENABLED: true
+      KC_METRICS_ENABLED: true
+    secrets:
+      - keycloak_admin_password
+      - db_password
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+secrets:
+  keycloak_admin_password:

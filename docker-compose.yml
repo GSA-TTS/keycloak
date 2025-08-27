@@ -33,6 +33,61 @@ services:
       postgres:
         condition: service_healthy
     command: start --optimized --http-enabled=true
+    develop:
+      watch:
+        # Sync theme files for hot reload - ideal for UI development
+        - action: sync
+          path: ./themes/src/main/resources/theme/usai
+          target: /opt/keycloak/themes/usai
+          ignore:
+            - "**/*.class"
+            - "**/target/"
+        
+        # Sync WebAuthn configuration scripts
+        - action: sync
+          path: ./webauthn-config
+          target: /opt/keycloak/webauthn-config
+          ignore:
+            - "**/*.log"
+        
+        # Sync entrypoint script changes
+        - action: sync
+          path: ./entrypoint.sh
+          target: /opt/keycloak/bin/entrypoint.sh
+        
+        # Rebuild when Maven POM files change (dependencies)
+        - action: rebuild
+          path: ./pom.xml
+        
+        - action: rebuild
+          path: ./keycloak-login.gov-integration/pom.xml
+        
+        - action: rebuild
+          path: ./themes/pom.xml
+        
+        - action: rebuild
+          path: ./extensions/keycloak-api-key-demo/api-key-module/pom.xml
+        
+        - action: rebuild
+          path: ./extensions/keycloak-api-key-demo/dashboard-service/pom.xml
+        
+        # Rebuild when Java source files change in extensions
+        - action: rebuild
+          path: ./keycloak-login.gov-integration/src
+          ignore:
+            - "**/*.class"
+            - "**/target/"
+        
+        - action: rebuild
+          path: ./extensions/keycloak-api-key-demo
+          ignore:
+            - "**/*.class"
+            - "**/target/"
+            - "**/*.log"
+        
+        # Rebuild when Dockerfile changes
+        - action: rebuild
+          path: ./Dockerfile
 
 volumes:
   postgres_data:

@@ -57,7 +57,33 @@ Once Keycloak is running, you can access the Admin Console at `http://localhost:
 To stop the services, run:
 
     docker compose down
-    
+
+#### WebAuthn Support
+
+This Keycloak distribution includes WebAuthn (passwordless authentication) support with the USAI theme. To enable WebAuthn for your realms:
+
+**Automatic Configuration (Docker):**
+```bash
+docker run -d \
+  --name keycloak-webauthn \
+  -p 8080:8080 \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=admin \
+  -e WEBAUTHN_REALMS=myrealm,testrealm \
+  your-keycloak-image:latest
+```
+
+**Manual Configuration:**
+```bash
+# Configure WebAuthn for any realm
+./webauthn-config/configure-webauthn-realm.sh YOUR_REALM_NAME
+```
+
+For detailed WebAuthn setup instructions, see:
+- [WebAuthn Setup Guide](WEBAUTHN-SETUP-GUIDE.md) - Complete setup instructions
+- [WebAuthn Docker Setup](WEBAUTHN-DOCKER-SETUP.md) - Docker-specific configuration
+- [WebAuthn Implementation Details](WEBAUTHN-THEME-IMPLEMENTATION.md) - Technical documentation
+
 For more details refer to the [Keycloak Documentation](https://www.keycloak.org/documentation.html).
 
 

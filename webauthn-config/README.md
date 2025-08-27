@@ -1,176 +1,134 @@
-# Keycloak WebAuthn Configuration for USAI
+# WebAuthn Configuration for Keycloak Realms
 
-This directory contains scripts to configure Keycloak with WebAuthn (passwordless authentication) support for the USAI theme.
+This directory contains scripts and configuration files to enable WebAuthn authentication for any Keycloak realm.
 
-## Overview
+## Files
 
-The configuration creates a new realm `usai-webauthn` with:
-- WebAuthn passwordless authentication
-- Traditional password + second factor authentication
-- USAI custom theme integration
-- Test user setup
+- `configure-webauthn-realm.sh` - Main configuration script
+- `README.md` - This file
 
-## Prerequisites
+## Quick Start
 
-1. **Keycloak Installation**: A running Keycloak instance
-2. **Admin CLI Access**: The `kcadm.sh` script must be accessible
-3. **jq**: JSON processor for parsing API responses
-4. **Environment Variables**: Set the following variables:
+1. **Make script executable** (if not already):
+   ```bash
+   chmod +x configure-webauthn-realm.sh
+   ```
 
-```bash
-export KCADM="/path/to/keycloak/bin/kcadm.sh"
-export HOST_FOR_KCADM="localhost"  # or your Keycloak host
-export KEYCLOAK_USER="admin"
-export KEYCLOAK_PASSWORD="admin"
-```
+2. **Configure WebAuthn for a realm**:
+   ```bash
+   ./configure-webauthn-realm.sh YOUR_REALM_NAME
+   ```
 
-## Installation
+3. **Set USAI theme** (if needed):
+   ```bash
+   $KEYCLOAK_HOME/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user admin --password admin
+   $KEYCLOAK_HOME/bin/kcadm.sh update realms/YOUR_REALM_NAME -s loginTheme="usai"
+   ```
 
-### Step 1: Enable Preview Features
+## Environment Variables
 
-Start Keycloak with WebAuthn preview features enabled:
-
-```bash
-./bin/standalone.sh \
-  -Dkeycloak.profile.feature.account2=enabled \
-  -Dkeycloak.profile.feature.account_api=enabled
-```
-
-### Step 2: Run Configuration Script
-
-Make the scripts executable and run the main configuration:
+Set these environment variables to customize the configuration:
 
 ```bash
-chmod +x webauthn-config/*.sh
-cd webauthn-config
-./keycloak-configuration.sh
+export KEYCLOAK_HOME="/opt/keycloak"          # Path to Keycloak installation
+export HOST_FOR_KCADM="localhost:8080"       # Keycloak host:port
+export KEYCLOAK_USER="admin"                 # Admin username
+export KEYCLOAK_PASSWORD="admin"             # Admin password
 ```
 
-## What Gets Configured
+## What the Script Does
 
-### Realm: `usai-webauthn`
-- User registration enabled
-- Event logging configured
-- USAI login theme applied
-- Account theme set to `keycloak-preview`
+1. **Creates Authentication Flow**: `Browser-WebAuthn-USAI`
+2. **Configures WebAuthn Policies**: Security settings for USAI
+3. **Registers Required Actions**: WebAuthn registration prompts
+4. **Sets Flow Binding**: Makes the new flow active for the realm
 
-### Authentication Flow: `Browser-WebAuthn-USAI`
-```
-1. Cookie (SSO)
-2. Forms (Subflow)
-   ├── Username Form
-   └── Passwordless Or Two-factors (Subflow)
-       ├── WebAuthn Passwordless
-       └── Password And Second-factor (Subflow)
-           ├── Password Form
-           └── Second-factor (Conditional Subflow)
-               ├── Condition User Configured
-               ├── WebAuthn Authenticator
-               └── OTP Form
-```
-
-### Client: `usai-client`
-- OpenID Connect protocol
-- Public client
-- Configured for USAI domains
-
-### WebAuthn Policies
-- Relying Party: "USAI"
-- RP ID: "usai.gov"
-- Signature algorithms: ES256, RS256
-- User verification required for passwordless
-
-### Test User
-- Username: `testuser`
-- Password: `testuser`
-- Email: `test.user@usai.gov`
-- Required to set up WebAuthn on first login
-
-## Usage
-
-### Accessing the Realm
-- Admin Console: `http://localhost:8080/admin/master/console/#/usai-webauthn`
-- Login URL: `http://localhost:8080/realms/usai-webauthn/protocol/openid-connect/auth?client_id=usai-client&response_type=code&redirect_uri=http://localhost:8080`
-
-### Testing WebAuthn
-
-1. **First Login**: 
-   - Use username `testuser` and password `testuser`
-   - You'll be prompted to register a WebAuthn security key
-   - Use Chrome browser for best compatibility
-
-2. **Subsequent Logins**:
-   - Enter username `testuser`
-   - Click "Try Another Way" to use passwordless authentication
-   - Use your registered security key
-
-### Managing Security Keys
-
-Users can manage their WebAuthn security keys in the Account Console:
-- URL: `http://localhost:8080/realms/usai-webauthn/account`
-- Navigate to "Signing in" section
-- Add/remove security keys as needed
-
-## File Structure
+## Authentication Flow Structure
 
 ```
-webauthn-config/
-├── keycloak-configuration.sh          # Main configuration script
-├── keycloak-configuration-helpers.sh  # Helper functions
-├── realm_master.sh                    # Master realm config (minimal)
-├── realm_usai_webauthn.sh            # USAI WebAuthn realm config
-└── README.md                         # This file
+Browser-WebAuthn-USAI
+├── Cookie (ALTERNATIVE) - SSO support
+└── Forms (ALTERNATIVE)
+    ├── Username Form (REQUIRED)
+    └── Passwordless_Or_Two-factors (REQUIRED)
+        ├── WebAuthn Passwordless (ALTERNATIVE)
+        └── Password_And_Second-factor (ALTERNATIVE)
+            ├── Password Form (REQUIRED)
+            └── Second-factor (CONDITIONAL)
+                ├── Condition User Configured (REQUIRED)
+                ├── WebAuthn Authenticator (ALTERNATIVE)
+                └── OTP Form (ALTERNATIVE)
+```
+
+## Usage Examples
+
+### Single Realm
+```bash
+./configure-webauthn-realm.sh myrealm
+```
+
+### Multiple Realms
+```bash
+for realm in realm1 realm2 realm3; do
+    ./configure-webauthn-realm.sh "$realm"
+done
+```
+
+### Docker Environment
+```bash
+export KEYCLOAK_HOME="/opt/keycloak"
+export HOST_FOR_KCADM="keycloak:8080"
+./configure-webauthn-realm.sh myrealm
 ```
 
 ## Troubleshooting
 
+### Prerequisites Check
+```bash
+# Check if jq is installed
+which jq
+
+# Check if Keycloak is running
+curl http://localhost:8080/health
+
+# List available realms
+$KEYCLOAK_HOME/bin/kcadm.sh get realms --fields realm
+```
+
 ### Common Issues
 
-1. **jq not found**: Install jq JSON processor
-   ```bash
-   # Ubuntu/Debian
-   sudo apt-get install jq
-   
-   # CentOS/RHEL
-   sudo yum install jq
-   
-   # macOS
-   brew install jq
-   ```
+1. **jq not found**: Install with `apt-get install jq` or `brew install jq`
+2. **Connection refused**: Ensure Keycloak is running and accessible
+3. **Authentication failed**: Verify admin credentials
+4. **Realm not found**: Check realm name spelling and existence
 
-2. **Authentication failed**: Check environment variables
-   ```bash
-   echo $KCADM
-   echo $HOST_FOR_KCADM
-   echo $KEYCLOAK_USER
-   ```
+### Debug Mode
+```bash
+set -x
+./configure-webauthn-realm.sh YOUR_REALM_NAME
+```
 
-3. **WebAuthn not working**: Ensure preview features are enabled
-   - Check Server Info in Admin Console
-   - Verify `account2` and `account_api` features are enabled
+## Security Notes
 
-4. **Theme not applied**: Verify USAI theme exists
-   - Check `themes/src/main/resources/theme/usai/` directory
-   - Restart Keycloak after theme changes
+- WebAuthn requires HTTPS in production
+- Update `webAuthnPolicyRpId` from "usai.gov" to your actual domain
+- Ensure users have backup authentication methods
+- Consider user training for security key usage
 
-### Browser Compatibility
+## Integration with USAI Theme
 
-WebAuthn works best with:
-- Chrome/Chromium (recommended)
-- Firefox
-- Safari (limited support)
-- Edge
+The script configures WebAuthn to work seamlessly with the USAI theme templates:
 
-### Security Considerations
+- `webauthn-authenticate.ftl` - Security key authentication
+- `webauthn-register.ftl` - Security key registration
+- `webauthn-error.ftl` - Error handling
+- `login.ftl` - Main login with WebAuthn support
+- `passkeys.ftl` - Conditional UI for passkeys
 
-- In production, change default passwords
-- Configure proper redirect URIs
-- Use HTTPS for WebAuthn
-- Consider backup authentication methods
-- Regularly update Keycloak
+## Support
 
-## References
-
-- [Keycloak WebAuthn Documentation](https://www.keycloak.org/docs/latest/server_admin/#webauthn)
-- [WebAuthn Specification](https://www.w3.org/TR/webauthn/)
-- [FIDO Alliance](https://fidoalliance.org/)
+For issues or questions:
+1. Check the troubleshooting section above
+2. Review Keycloak logs for detailed error messages
+3. Verify browser compatibility for WebAuthn
+4. Ensure security keys are FIDO2/WebAuthn compatible
