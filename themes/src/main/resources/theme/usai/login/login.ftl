@@ -8,7 +8,6 @@
             <div class="usa-card__body">
                 <p class="login-description">Sign in with your agency credentials to access USAi.</p>
                 
-                
                 <div class="login-footer-text">
                     <p>USAi is available only from an approved government network within a participating agency.</p>
                 </div>
