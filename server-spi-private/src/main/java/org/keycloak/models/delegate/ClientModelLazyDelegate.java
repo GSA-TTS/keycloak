@@ -16,6 +16,13 @@
  */
 package org.keycloak.models.delegate;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicMarkableReference;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientScopeModel;
 import org.keycloak.models.KeycloakSession;
@@ -23,12 +30,6 @@ import org.keycloak.models.ModelIllegalStateException;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
-
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicMarkableReference;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 /**
  *
@@ -510,18 +511,28 @@ public class ClientModelLazyDelegate implements ClientModel {
     }
 
     @Override
-    public boolean isDynamicScope() {
-        return getDelegate().isDynamicScope();
+    public boolean isParameterizedScope() {
+        return getDelegate().isParameterizedScope();
     }
 
     @Override
-    public void setIsDynamicScope(boolean isDynamicScope) {
-        getDelegate().setIsDynamicScope(isDynamicScope);
+    public void setIsParameterizedScope(boolean isParameterizedScope) {
+        getDelegate().setIsParameterizedScope(isParameterizedScope);
     }
 
     @Override
-    public String getDynamicScopeRegexp() {
-        return getDelegate().getDynamicScopeRegexp();
+    public String getParameterizedScopeRegexp() {
+        return getDelegate().getParameterizedScopeRegexp();
+    }
+
+    @Override
+    public boolean isIncludeInOpenIDProviderMetadata() {
+        return getDelegate().isIncludeInOpenIDProviderMetadata();
+    }
+
+    @Override
+    public void setIncludeInOpenIDProviderMetadata(boolean includeInOpenIDProviderMetadata) {
+        getDelegate().setIncludeInOpenIDProviderMetadata(includeInOpenIDProviderMetadata);
     }
 
     @Override
@@ -612,6 +623,11 @@ public class ClientModelLazyDelegate implements ClientModel {
     @Override
     public ProtocolMapperModel getProtocolMapperById(String id) {
         return getDelegate().getProtocolMapperById(id);
+    }
+
+    @Override
+    public List<ProtocolMapperModel> getProtocolMapperByType(String type) {
+        return getDelegate().getProtocolMapperByType(type);
     }
 
     @Override

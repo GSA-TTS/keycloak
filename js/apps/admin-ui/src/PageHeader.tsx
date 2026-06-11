@@ -14,12 +14,18 @@ import { useRealm } from "./context/realm-context/RealmContext";
 import { toDashboard } from "./dashboard/routes/Dashboard";
 import { usePreviewLogo } from "./realm-settings/themes/LogoContext";
 import { joinPath } from "./utils/joinPath";
+import { useIsFeatureDisabled, Feature } from "./utils/useIsFeatureEnabled";
 import useToggle from "./utils/useToggle";
 
 const ManageAccountDropdownItem = () => {
   const { keycloak } = useEnvironment();
-
   const { t } = useTranslation();
+  const isFeatureDisabled = useIsFeatureDisabled();
+
+  if (isFeatureDisabled(Feature.AccountV3)) {
+    return null;
+  }
+
   return (
     <DropdownItem
       key="manage account"
@@ -102,7 +108,7 @@ export const Header = () => {
   const isMasterRealm = realm === "master";
   const isManager = hasAccess("manage-realm");
 
-  const logo = customLogo || environment.logo || "/logo.svg";
+  const logo = environment.logo || "/logo.svg";
   const url = useHref(toDashboard({ realm }));
   const logoUrl = environment.logoUrl ? environment.logoUrl : url;
 
@@ -113,9 +119,9 @@ export const Header = () => {
       features={{ hasManageAccount: false }}
       brand={{
         href: logoUrl,
-        src: logo.startsWith("/")
-          ? joinPath(environment.resourceUrl, logo)
-          : logo,
+        src: customLogo?.trim()
+          ? customLogo
+          : joinPath(environment.resourceUrl, logo),
         alt: t("logo"),
         className: "keycloak__pageheader_brand",
       }}

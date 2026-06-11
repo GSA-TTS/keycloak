@@ -16,13 +16,15 @@
  */
 package org.keycloak.testsuite.broker;
 
-import static org.keycloak.testsuite.broker.BrokerTestConstants.IDP_OIDC_ALIAS;
-import static org.keycloak.testsuite.broker.BrokerTestTools.createIdentityProvider;
-
-import org.junit.Test;
 import org.keycloak.models.IdentityProviderSyncMode;
 import org.keycloak.representations.idm.IdentityProviderRepresentation;
 import org.keycloak.testsuite.broker.oidc.TestKeycloakOidcIdentityProviderFactory;
+
+import org.junit.Test;
+
+import static org.keycloak.testsuite.broker.BrokerTestConstants.IDP_OIDC_ALIAS;
+import static org.keycloak.testsuite.broker.BrokerTestTools.createIdentityProvider;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 
@@ -50,7 +52,7 @@ public class KcCustomOidcBrokerTest extends AbstractInitializedBaseBrokerTest {
 
     @Test
     public void testCustomDisplayIcon() {
-        oauth.clientId("broker-app");
+        oauth.client("broker-app");
         loginPage.open(bc.consumerRealmName());
         assertThat(driver.getPageSource(), containsString("my-custom-idp-icon"));
     }

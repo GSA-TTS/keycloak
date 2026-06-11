@@ -17,7 +17,8 @@
 
 package org.keycloak.tests.admin;
 
-import org.junit.jupiter.api.Test;
+import java.util.List;
+
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.models.FederatedIdentityModel;
 import org.keycloak.models.RealmModel;
@@ -27,17 +28,18 @@ import org.keycloak.testframework.annotations.InjectRealm;
 import org.keycloak.testframework.annotations.KeycloakIntegrationTest;
 import org.keycloak.testframework.injection.LifeCycle;
 import org.keycloak.testframework.realm.ManagedRealm;
-import org.keycloak.testframework.realm.UserConfigBuilder;
+import org.keycloak.testframework.realm.UserBuilder;
 import org.keycloak.testframework.remote.runonserver.InjectRunOnServer;
 import org.keycloak.testframework.remote.runonserver.RunOnServerClient;
 
-import java.util.List;
+import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 @KeycloakIntegrationTest
 public class UsersTest {
@@ -63,6 +65,20 @@ public class UsersTest {
     }
 
     @Test
+    public void testFullRepresentationOnSearches() {
+        createUser("user", "firstName", "lastName", "user@example.com");
+
+        List<UserRepresentation> users = realm.admin().users().search("user", null, null, false);
+        UserRepresentation user = users.get(0);
+        assertThat(user.getRequiredActions(), empty());
+
+        users = realm.admin().users().search("user", null, null, true);
+        user = users.get(0);
+        assertThat(user.getRequiredActions(), nullValue());
+        assertThat(user.isTotp(), nullValue());
+    }
+
+    @Test
     public void searchUserDefaultSettings() throws Exception {
         createUser("User", "firstName", "lastName", "user@example.com");
 
@@ -85,16 +101,16 @@ public class UsersTest {
      */
     @Test
     public void findUsersByEmailVerifiedStatus() {
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("user1")
                 .password("password")
                 .name("user1FirstName", "user1LastName")
                 .email("user1@example.com")
-                .emailVerified()
+                .emailVerified(true)
                 .enabled(true)
                 .build());
 
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("user2")
                 .password("password")
                 .name("user2FirstName", "user2LastName")
@@ -108,12 +124,12 @@ public class UsersTest {
         assertThat(usersEmailVerified, is(not(empty())));
         assertThat(usersEmailVerified.get(0).getUsername(), is("user1"));
 
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("testuser2")
                 .password("password")
                 .name("testuser2", "testuser2")
                 .email("testuser2@example.com")
-                .emailVerified()
+                .emailVerified(true)
                 .enabled(true)
                 .build());
 
@@ -128,7 +144,7 @@ public class UsersTest {
         assertThat(usersEmailNotVerified, is(not(empty())));
         assertThat(usersEmailNotVerified.get(0).getUsername(), is("user2"));
 
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("testuser3")
                 .password("password")
                 .name("testuser3", "testuser3")
@@ -145,16 +161,16 @@ public class UsersTest {
 
     @Test
     public void testCountUsersByEnabledStatus() {
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("user1")
                 .password("password")
                 .name("user1FirstName", "user1LastName")
                 .email("user1@example.com")
-                .emailVerified()
+                .emailVerified(true)
                 .enabled(true)
                 .build());
 
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("user2")
                 .password("password")
                 .name("user2FirstName", "user2LastName")
@@ -168,15 +184,15 @@ public class UsersTest {
 
     @Test
     public void testCountUsersByFederatedIdentity() {
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("user1")
                 .password("password")
                 .name("user1FirstName", "user1LastName")
                 .email("user1@example.com")
-                .emailVerified()
+                .emailVerified(true)
                 .enabled(true)
                 .build());
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("user2")
                 .password("password")
                 .name("user2FirstName", "user2LastName")
@@ -204,16 +220,16 @@ public class UsersTest {
      */
     @Test
     public void countUsersByEmailVerifiedStatus() {
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("user1")
                 .password("password")
                 .name("user1FirstName", "user1LastName")
                 .email("user1@example.com")
-                .emailVerified()
+                .emailVerified(true)
                 .enabled(true)
                 .build());
 
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("user2")
                 .password("password")
                 .name("user2FirstName", "user2LastName")
@@ -221,12 +237,12 @@ public class UsersTest {
                 .enabled(true)
                 .build());
 
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("user3")
                 .password("password")
                 .name("user3FirstName", "user3LastName")
                 .email("user3@example.com")
-                .emailVerified()
+                .emailVerified(true)
                 .enabled(true)
                 .build());
 
@@ -249,16 +265,16 @@ public class UsersTest {
 
     @Test
     public void countUsersBySearchWithViewPermission() {
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("user1")
                 .password("password")
                 .name("user1FirstName", "user1LastName")
                 .email("user1@example.com")
-                .emailVerified()
+                .emailVerified(true)
                 .enabled(true)
                 .build());
 
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("user2")
                 .password("password")
                 .name("user2FirstName", "user2LastName")
@@ -266,12 +282,12 @@ public class UsersTest {
                 .enabled(true)
                 .build());
 
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username("user3")
                 .password("password")
                 .name("user3FirstName", "user3LastName")
                 .email("user3@example.com")
-                .emailVerified()
+                .emailVerified(true)
                 .enabled(true)
                 .build());
 
@@ -366,7 +382,7 @@ public class UsersTest {
     }
 
     private void createUser(String username, String firstName, String lastName, String email) {
-        createUser(UserConfigBuilder.create()
+        createUser(UserBuilder.create()
                 .username(username)
                 .password("password")
                 .name(firstName, lastName)

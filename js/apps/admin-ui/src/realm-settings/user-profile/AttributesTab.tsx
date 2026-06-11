@@ -73,10 +73,10 @@ export const AttributesTab = ({ setTableData }: AttributesTabProps) => {
           combinedLocales.map(async (locale) => {
             try {
               const response =
-                await adminClient.realms.getRealmLocalizationTexts({
+                (await adminClient.realms.getRealmLocalizationTexts({
                   realm,
                   selectedLocale: locale,
-                });
+                })) as Record<string, string> | undefined;
 
               if (response) {
                 await adminClient.realms.deleteRealmLocalizationTexts({
@@ -140,7 +140,7 @@ export const AttributesTab = ({ setTableData }: AttributesTabProps) => {
     attributes.splice(newIndex, 0, movedAttribute);
 
     await save(
-      { attributes, groups },
+      { ...config, attributes, groups },
       {
         successMessageKey: "updatedUserProfileSuccess",
         errorMessageKey: "updatedUserProfileError",

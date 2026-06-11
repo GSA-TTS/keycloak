@@ -16,12 +16,13 @@
  */
 package org.keycloak.services.managers;
 
-import jakarta.ws.rs.core.UriInfo;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import jakarta.ws.rs.core.UriInfo;
 
 import org.keycloak.common.ClientConnection;
 import org.keycloak.models.AbstractKeycloakTransaction;
@@ -134,23 +135,23 @@ public class DefaultBlockingBruteForceProtector extends DefaultBruteForceProtect
     }
 
     @Override
-    protected void processLogin(RealmModel realm, UserModel user, ClientConnection clientConnection, UriInfo uriInfo, boolean success) {
+    protected void processLogin(RealmModel realm, UserModel user, ClientConnection clientConnection, UriInfo uriInfo, boolean success, String category) {
         // mark the off-thread is started for this request
         loginAttempts.computeIfPresent(user.getId(), (k, v) -> v + OFF_THREAD_STARTED);
-        super.processLogin(realm, user, clientConnection, uriInfo, success);
+        super.processLogin(realm, user, clientConnection, uriInfo, success, category);
     }
 
     @Override
-    protected void failure(KeycloakSession session, RealmModel realm, String userId, String remoteAddr, long failureTime) {
+    protected void failure(KeycloakSession session, RealmModel realm, String userId, String remoteAddr, long failureTime, String category) {
         // remove the user from concurrent login attemps once it's processed
         enlistRemoval(session, userId);
-        super.failure(session, realm, userId, remoteAddr, failureTime);
+        super.failure(session, realm, userId, remoteAddr, failureTime, category);
     }
 
     @Override
-    protected void success(KeycloakSession session, RealmModel realm, String userId) {
-        // remove the user from concurrent login attemps once it's processed
+    protected void success(KeycloakSession session, RealmModel realm, String userId, String category) {
+        // remove the user from concurrent login attempts once it's processed
         enlistRemoval(session, userId);
-        super.success(session, realm, userId);
+        super.success(session, realm, userId, category);
     }
 }

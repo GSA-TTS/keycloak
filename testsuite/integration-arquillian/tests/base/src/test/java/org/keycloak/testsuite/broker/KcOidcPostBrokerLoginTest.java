@@ -22,9 +22,6 @@ package org.keycloak.testsuite.broker;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.authentication.AuthenticationFlow;
@@ -42,8 +39,13 @@ import org.keycloak.testsuite.client.KeycloakTestingClient;
 import org.keycloak.testsuite.updaters.RealmAttributeUpdater;
 import org.keycloak.testsuite.util.AccountHelper;
 import org.keycloak.testsuite.util.FlowUtil;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+
 import static org.keycloak.models.utils.TimeBasedOTP.DEFAULT_INTERVAL_SECONDS;
-import static org.keycloak.testsuite.admin.ApiUtil.removeUserByUsername;
+import static org.keycloak.testsuite.admin.AdminApiUtil.removeUserByUsername;
 import static org.keycloak.testsuite.broker.BrokerRunOnServerUtil.configurePostBrokerLoginWithOTP;
 import static org.keycloak.testsuite.broker.BrokerTestTools.getConsumerRoot;
 import static org.keycloak.testsuite.broker.BrokerTestTools.waitForPage;
@@ -81,7 +83,7 @@ public class KcOidcPostBrokerLoginTest extends AbstractInitializedBaseBrokerTest
             adminClient.realm(bc.providerRealmName()).clients().create(samlClient);
             consumerRealm.identityProviders().create(samlBroker);
 
-            oauth.clientId("broker-app");
+            oauth.client("broker-app");
             loginPage.open(bc.consumerRealmName());
 
             testingClient.server(bc.consumerRealmName()).run(configurePostBrokerLoginWithOTP(samlBrokerConfig.getIDPAlias()));
@@ -96,7 +98,7 @@ public class KcOidcPostBrokerLoginTest extends AbstractInitializedBaseBrokerTest
 
             setOtpTimeOffset(DEFAULT_INTERVAL_SECONDS, totp);
 
-            oauth.clientId("broker-app");
+            oauth.client("broker-app");
             loginPage.open(bc.consumerRealmName());
 
             logInWithBroker(bc);
@@ -130,7 +132,7 @@ public class KcOidcPostBrokerLoginTest extends AbstractInitializedBaseBrokerTest
             adminClient.realm(bc.providerRealmName()).clients().create(samlClient);
             consumerRealm.identityProviders().create(samlBroker);
 
-            oauth.clientId("broker-app");
+            oauth.client("broker-app");
             loginPage.open(bc.consumerRealmName());
 
             logInWithBroker(samlBrokerConfig);
@@ -139,7 +141,7 @@ public class KcOidcPostBrokerLoginTest extends AbstractInitializedBaseBrokerTest
 
             testingClient.server(bc.consumerRealmName()).run(configurePostBrokerLoginWithOTP(bc.getIDPAlias()));
 
-            oauth.clientId("broker-app");
+            oauth.client("broker-app");
             loginPage.open(bc.consumerRealmName());
 
             logInWithBroker(bc);
@@ -179,7 +181,7 @@ public class KcOidcPostBrokerLoginTest extends AbstractInitializedBaseBrokerTest
                 providerRealm.clients().create(samlClient);
                 consumerRealm.identityProviders().create(samlBroker);
 
-                oauth.clientId("broker-app");
+                oauth.client("broker-app");
                 loginPage.open(bc.consumerRealmName());
 
                 testingClient.server(bc.consumerRealmName()).run(configurePostBrokerLoginWithOTP(samlBrokerConfig.getIDPAlias()));
@@ -191,7 +193,7 @@ public class KcOidcPostBrokerLoginTest extends AbstractInitializedBaseBrokerTest
                 AccountHelper.logout(adminClient.realm(bc.providerRealmName()), bc.getUserLogin());
 
                 testingClient.server(bc.consumerRealmName()).run(configurePostBrokerLoginWithOTP(bc.getIDPAlias()));
-                oauth.clientId("broker-app");
+                oauth.client("broker-app");
                 loginPage.open(bc.consumerRealmName());
 
                 logInWithBroker(bc);
@@ -206,7 +208,7 @@ public class KcOidcPostBrokerLoginTest extends AbstractInitializedBaseBrokerTest
                 AccountHelper.logout(adminClient.realm(bc.consumerRealmName()), bc.getUserLogin());
                 AccountHelper.logout(adminClient.realm(bc.providerRealmName()), bc.getUserLogin());
 
-                oauth.clientId("broker-app");
+                oauth.client("broker-app");
                 loginPage.open(bc.consumerRealmName());
 
                 logInWithBroker(bc);
@@ -230,7 +232,7 @@ public class KcOidcPostBrokerLoginTest extends AbstractInitializedBaseBrokerTest
         // Setup with default client scope - OTP required
         configurePostBrokerLoginWithClientScopeConditionAndOTP(testingClient, bc.consumerRealmName(), bc.getIDPAlias(), OAuth2Constants.SCOPE_PROFILE, false);
 
-        oauth.clientId("broker-app");
+        oauth.client("broker-app");
         loginPage.open(bc.consumerRealmName());
         logInWithBroker(bc);
 

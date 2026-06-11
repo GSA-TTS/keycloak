@@ -17,21 +17,6 @@
 
 package org.keycloak.models.jpa;
 
-import static org.keycloak.common.util.StackUtil.getShortStackTrace;
-import static org.keycloak.models.jpa.PaginationUtils.paginateQuery;
-import static org.keycloak.utils.StreamsUtil.closing;
-
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
-import jakarta.persistence.TypedQuery;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.CriteriaDelete;
-import jakarta.persistence.criteria.CriteriaQuery;
-import jakarta.persistence.criteria.Join;
-import jakarta.persistence.criteria.JoinType;
-import jakarta.persistence.criteria.MapJoin;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,8 +29,18 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.hibernate.Session;
-import org.jboss.logging.Logger;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.TypedQuery;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaDelete;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.MapJoin;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+
 import org.keycloak.authorization.fgap.AdminPermissionsSchema;
 import org.keycloak.client.clienttype.ClientTypeManager;
 import org.keycloak.common.Profile;
@@ -85,6 +80,13 @@ import org.keycloak.models.jpa.entities.RealmLocalizationTextsEntity;
 import org.keycloak.models.jpa.entities.RoleEntity;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
+
+import org.hibernate.Session;
+import org.jboss.logging.Logger;
+
+import static org.keycloak.common.util.StackUtil.getShortStackTrace;
+import static org.keycloak.models.jpa.PaginationUtils.paginateQuery;
+import static org.keycloak.utils.StreamsUtil.closing;
 
 
 /**
@@ -203,11 +205,13 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, ClientSc
         session.clientScopes().removeClientScopes(adapter);
         session.roles().removeRoles(adapter);
 
+        // Remove groups before organizations to avoid FK constraint violations
+        session.groups().preRemove(adapter);
+
         em.createNamedQuery("deleteOrganizationDomainsByRealm")
                 .setParameter("realmId", realm.getId()).executeUpdate();
         em.createNamedQuery("deleteOrganizationsByRealm")
                 .setParameter("realmId", realm.getId()).executeUpdate();
-        session.groups().preRemove(adapter);
 
         session.identityProviders().removeAll();
         session.identityProviders().removeAllMappers();
@@ -453,17 +457,8 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, ClientSc
             throw new ModelException("Role not found or trying to remove role from incorrect realm");
         }
 
-        // Can't use a native query to delete the composite roles mappings because it causes TransientObjectException.
-        // At the same time, can't use the persist cascade type on the compositeRoles field because in that case
-        // we could not still use a native query as a different problem would arise - it may happen that a parent role that
-        // has this role as a composite is present in the persistence context. In that case it, the role would be re-created
-        // again after deletion through persist cascade type.
-        // So in any case, native query is not an option. This is not optimal as it executes additional queries but
-        // the alternative of clearing the persistence context is not either as we don't know if something currently present
-        // in the context is not needed later.
-
-        roleEntity.getCompositeRoles().forEach(childRole -> childRole.getParentRoles().remove(roleEntity));
-        roleEntity.getParentRoles().forEach(parentRole -> parentRole.getCompositeRoles().remove(roleEntity));
+        em.createNamedQuery("deleteRoleFromComposites").setParameter("role", roleEntity)
+                .executeUpdate();
 
         em.createNamedQuery("deleteClientScopeRoleMappingByRole").setParameter("role", roleEntity).executeUpdate();
 
@@ -778,7 +773,6 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, ClientSc
             .map(realm::getGroupById)
             // In concurrent tests, the group might be deleted in another thread, therefore, skip those null values.
             .filter(Objects::nonNull)
-            .sorted(GroupModel.COMPARE_BY_NAME)
         );
     }
 
@@ -838,6 +832,9 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, ClientSc
         groupEntity.setRealm(realm.getId());
         groupEntity.setParentId(toParent == null? GroupEntity.TOP_PARENT_ID : toParent.getId());
         groupEntity.setType(type == null ? Type.REALM.intValue() : type.intValue());
+        long now = Time.currentTimeMillis();
+        groupEntity.setCreatedTimestamp(now);
+        groupEntity.setLastModifiedTimestamp(now);
         em.persist(groupEntity);
         em.flush();
 
@@ -905,7 +902,17 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, ClientSc
 
         resource = toClientModel(realm, entity);
 
-        session.getKeycloakSessionFactory().publish((ClientModel.ClientCreationEvent) () -> resource);
+        session.getKeycloakSessionFactory().publish(new ClientModel.ClientCreationEvent() {
+            @Override
+            public ClientModel getCreatedClient() {
+                return resource;
+            }
+
+            @Override
+            public KeycloakSession getKeycloakSession() {
+                return session;
+            }
+        });
         return resource;
     }
 
@@ -1001,9 +1008,14 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, ClientSc
 
     @Override
     public Stream<ClientModel> searchClientsByAttributes(RealmModel realm, Map<String, String> attributes, Integer firstResult, Integer maxResults) {
-        Map<String, String> filteredAttributes = clientSearchableAttributes == null ? attributes :
-                attributes.entrySet().stream().filter(m -> clientSearchableAttributes.contains(m.getKey()))
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> filteredAttributes = attributes;
+        if (clientSearchableAttributes != null) {
+            Set<String> notAllowed = attributes.keySet().stream().filter(attr -> !clientSearchableAttributes.contains(attr)).collect(Collectors.toSet());
+            if (!notAllowed.isEmpty()) {
+                throw new ModelException("Attributes [" + String.join(", ", notAllowed) + "] not allowed for search");
+            }
+            filteredAttributes = attributes.entrySet().stream().filter(e -> clientSearchableAttributes.contains(e.getKey())).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        }
 
         CriteriaBuilder builder = em.getCriteriaBuilder();
         CriteriaQuery<String> queryBuilder = builder.createQuery(String.class);
@@ -1315,24 +1327,27 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, ClientSc
         Map<String, ClientScopeModel> existingClientScopes = getClientScopes(realm, client, true);
         existingClientScopes.putAll(getClientScopes(realm, client, false));
 
-        clientScopes.stream()
-            .filter(clientScope -> !existingClientScopes.containsKey(clientScope.getName()))
-            .filter(clientScope -> {
-                if (clientScope.getProtocol() == null) {
-                    // set default protocol if not set. Otherwise, we will get a NullPointer
-                    clientScope.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
-                }
-                return acceptedClientProtocols.contains(clientScope.getProtocol());
-            })
-            .forEach(clientScope -> {
-                ClientScopeClientMappingEntity entity = new ClientScopeClientMappingEntity();
-                entity.setClientScopeId(clientScope.getId());
-                entity.setClientId(client.getId());
-                entity.setDefaultScope(defaultScope);
-                em.persist(entity);
-                em.flush();
-                em.detach(entity);
-            });
+        Set<ClientScopeClientMappingEntity> clientScopeEntities = clientScopes.stream()
+                .filter(clientScope -> !existingClientScopes.containsKey(clientScope.getName()))
+                .filter(clientScope -> {
+                    if (clientScope.getProtocol() == null) {
+                        // set default protocol if not set. Otherwise, we will get a NullPointer
+                        clientScope.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
+                    }
+                    return acceptedClientProtocols.contains(clientScope.getProtocol());
+                })
+                .map(clientScope -> {
+                    ClientScopeClientMappingEntity entity = new ClientScopeClientMappingEntity();
+                    entity.setClientScopeId(clientScope.getId());
+                    entity.setClientId(client.getId());
+                    entity.setDefaultScope(defaultScope);
+                    em.persist(entity);
+                    return entity;
+                }).collect(Collectors.toSet());
+        if (!clientScopeEntities.isEmpty()) {
+            em.flush();
+            clientScopeEntities.forEach(entity -> em.detach(entity));
+        }
     }
 
     @Override
@@ -1386,7 +1401,8 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, ClientSc
         if (Boolean.TRUE.equals(exact)) {
             predicates.add(builder.equal(root.get("name"), search));
         } else {
-            predicates.add(builder.like(builder.lower(root.get("name")), builder.lower(builder.literal("%" + search + "%"))));
+            String escapedSearch = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_").replace("*", "%");
+            predicates.add(builder.like(builder.lower(root.get("name")), builder.lower(builder.literal("%" + escapedSearch + "%")), '\\'));
         }
 
         predicates.addAll(AdminPermissionsSchema.SCHEMA.applyAuthorizationFilters(session, AdminPermissionsSchema.GROUPS, realm, builder, queryBuilder, root));
@@ -1397,7 +1413,6 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, ClientSc
         return closing(paginateQuery(em.createQuery(queryBuilder), first, max).getResultStream()
                 .map(id -> session.groups().getGroupById(realm, id))
                 .filter(Objects::nonNull)
-                .sorted(GroupModel.COMPARE_BY_NAME)
                 .distinct());
     }
 

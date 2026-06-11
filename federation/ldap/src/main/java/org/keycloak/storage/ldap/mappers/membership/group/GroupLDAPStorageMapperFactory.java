@@ -17,6 +17,12 @@
 
 package org.keycloak.storage.ldap.mappers.membership.group;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
 import org.keycloak.common.util.ObjectUtil;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.component.ComponentValidationException;
@@ -38,12 +44,6 @@ import org.keycloak.storage.ldap.mappers.membership.LDAPGroupMapperMode;
 import org.keycloak.storage.ldap.mappers.membership.MembershipType;
 import org.keycloak.storage.ldap.mappers.membership.UserRolesRetrieveStrategy;
 import org.keycloak.storage.ldap.mappers.membership.role.RoleMapperConfig;
-
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
@@ -94,13 +94,13 @@ public class GroupLDAPStorageMapperFactory extends AbstractLDAPStorageMapperFact
         ProviderConfigurationBuilder config = ProviderConfigurationBuilder.create()
                 .property().name(GroupMapperConfig.GROUPS_DN)
                 .label("LDAP Groups DN")
-                .helpText("LDAP DN where are groups of this tree saved. For example 'ou=groups,dc=example,dc=org' ")
+                .helpText("LDAP DN where groups of this tree are saved. For example 'ou=groups,dc=example,dc=org' ")
                 .type(ProviderConfigProperty.STRING_TYPE)
                 .required(true)
                 .add()
                 .property().name(GroupMapperConfig.GROUPS_RELATIVE_CREATE_DN)
                 .label("Relative creation DN")
-                .helpText("LDAP DN where are groups of this tree will be created relative to the 'LDAP Groups DN' ")
+                .helpText("LDAP DN where groups of this tree will be created relative to the 'LDAP Groups DN' ")
                 .type(ProviderConfigProperty.STRING_TYPE)
                 .add()
                 .property().name(GroupMapperConfig.GROUP_NAME_LDAP_ATTRIBUTE)
@@ -209,6 +209,13 @@ public class GroupLDAPStorageMapperFactory extends AbstractLDAPStorageMapperFact
                 .helpText("List of names of attributes divided by comma. This points to the list of attributes on LDAP group, which will be mapped as attributes of Group in Keycloak. " +
                         "Leave this empty if no additional group attributes are required to be mapped in Keycloak. ")
                 .type(ProviderConfigProperty.STRING_TYPE)
+                .add()
+                .property().name(GroupMapperConfig.DECODE_GROUP_UUID_ATTRIBUTE)
+                .label("Decode UUID Attribute to UUID Format")
+                .helpText("If on, the UUID LDAP attribute (e.g. objectGUID in Active Directory) listed in 'Mapped Group Attributes' " +
+                        "is decoded to UUID string format. If off, the attribute is kept as a base64-encoded string.")
+                .type(ProviderConfigProperty.BOOLEAN_TYPE)
+                .defaultValue("true")
                 .add()
                 .property().name(GroupMapperConfig.DROP_NON_EXISTING_GROUPS_DURING_SYNC)
                 .label("Drop non-existing groups during sync")

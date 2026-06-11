@@ -6,14 +6,13 @@
 <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <meta name="robots" content="noindex, nofollow">
 
     <#if properties.meta?has_content>
         <#list properties.meta?split(' ') as meta>
             <meta name="${meta?split('==')[0]}" content="${meta?split('==')[1]}"/>
         </#list>
     </#if>
-    <title>${msg("loginTitle",(realm.displayName!''))}</title>
+    <title>${title!}</title>
     <link rel="icon" href="${url.resourcesPath}/img/favicon.ico" />
     <#if properties.stylesCommon?has_content>
         <#list properties.stylesCommon?split(' ') as style>
@@ -44,11 +43,13 @@
         </#list>
     </#if>
     <script type="module">
-        import { startSessionPolling } from "${url.resourcesPath}/js/authChecker.js";
+        <#outputformat "JavaScript">
+        import { startSessionPolling } from ${(url.resourcesPath + "/js/authChecker.js")?c};
 
         startSessionPolling(
-            "${url.ssoLoginInOtherTabsUrl?no_esc}"
+            ${url.ssoLoginInOtherTabsUrl?c}
         );
+        </#outputformat>
     </script>
     <script type="module">
         document.addEventListener("click", (event) => {
@@ -75,11 +76,13 @@
     </script>
     <#if authenticationSession??>
         <script type="module">
-            import { checkAuthSession } from "${url.resourcesPath}/js/authChecker.js";
+            <#outputformat "JavaScript">
+            import { checkAuthSession } from ${(url.resourcesPath + "/js/authChecker.js")?c};
 
             checkAuthSession(
-                "${authenticationSession.authSessionIdHash}"
+                ${authenticationSession.authSessionIdHash?c}
             );
+            </#outputformat>
         </script>
     </#if>
 </head>
@@ -181,6 +184,16 @@
                       <input type="hidden" name="tryAnotherWay" value="on"/>
                       <a href="#" id="try-another-way"
                          onclick="document.forms['kc-select-try-another-way-form'].requestSubmit();return false;">${msg("doTryAnotherWay")}</a>
+                  </div>
+              </form>
+          </#if>
+
+          <#if switchOrganizationEnabled?? && switchOrganizationEnabled>
+              <form id="kc-switch-organization-form" action="${url.loginAction}" method="post">
+                  <div class="${properties.kcFormGroupClass!}">
+                      <input type="hidden" name="switchOrganization" value="true"/>
+                      <a href="#" id="switch-organization"
+                         onclick="document.forms['kc-switch-organization-form'].requestSubmit();return false;">${msg("doSwitchOrganization")}</a>
                   </div>
               </form>
           </#if>

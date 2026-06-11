@@ -18,11 +18,15 @@
 
 package org.keycloak.testsuite.federation.storage;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.jboss.arquillian.graphene.page.Page;
-import org.junit.Before;
-import org.junit.Test;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import jakarta.ws.rs.core.Response;
+
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.authentication.AuthenticationFlow;
 import org.keycloak.authentication.authenticators.browser.RecoveryAuthnCodesFormAuthenticatorFactory;
@@ -56,19 +60,17 @@ import org.keycloak.testsuite.pages.LoginPage;
 import org.keycloak.testsuite.pages.LoginTotpPage;
 import org.keycloak.testsuite.pages.SetupRecoveryAuthnCodesPage;
 import org.keycloak.testsuite.util.FlowUtil;
-import org.keycloak.testsuite.util.oauth.OAuthClient;
 import org.keycloak.testsuite.util.TestAppHelper;
-
-import jakarta.ws.rs.core.Response;
 import org.keycloak.testsuite.util.TokenUtil;
-import org.openqa.selenium.WebDriver;
+import org.keycloak.testsuite.util.oauth.OAuthClient;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import com.fasterxml.jackson.core.type.TypeReference;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.jboss.arquillian.graphene.page.Page;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.openqa.selenium.WebDriver;
 
 import static org.wildfly.common.Assert.assertTrue;
 
@@ -140,7 +142,7 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
     }
 
     protected String addComponent(ComponentRepresentation component) {
-        Response resp = testRealm().components().add(component);
+        Response resp = managedRealm.admin().components().add(component);
         String id = ApiUtil.getCreatedId(resp);
         getCleanup().addComponentId(id);
         return id;
@@ -156,7 +158,7 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
     }
 
     public void loginBadPassword(String username) {
-        loginPage.open();
+        oauth.openLoginForm();
         loginPage.login(username, "badpassword");
         loginPage.assertCurrent();
     }
@@ -176,10 +178,10 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
         UserRepresentation user = new UserRepresentation();
         user.setEnabled(true);
         user.setUsername(username);
-        Response response = testRealm().users().create(user);
+        Response response = managedRealm.admin().users().create(user);
         String userId = ApiUtil.getCreatedId(response);
 
-        Assert.assertEquals(backwardsCompProviderId, new StorageId(userId).getProviderId());
+        Assertions.assertEquals(backwardsCompProviderId, new StorageId(userId).getProviderId());
 
         // Update his password
         CredentialRepresentation passwordRep = new CredentialRepresentation();
@@ -187,7 +189,7 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
         passwordRep.setValue(password);
         passwordRep.setTemporary(false);
 
-        testRealm().users().get(userId).resetPassword(passwordRep);
+        managedRealm.admin().users().get(userId).resetPassword(passwordRep);
 
         return userId;
     }
@@ -224,7 +226,7 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
         loginTotpPage.assertCurrent();
         loginTotpPage.login("7123456");
         loginTotpPage.assertCurrent();
-        Assert.assertNotNull(loginTotpPage.getInputError());
+        Assertions.assertNotNull(loginTotpPage.getInputError());
 
         // Authenticate as the user with correct OTP
         loginTotpPage.login(totp.generateTOTP(totpSecret));
@@ -261,7 +263,7 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
             testAppHelper.logout();
         } finally {
             // Revert copy of browser flow to original to keep clean slate after this test
-            BrowserFlowTest.revertFlows(testRealm(), BROWSER_FLOW_WITH_RECOVERY_AUTHN_CODES);
+            BrowserFlowTest.revertFlows(managedRealm.admin(), BROWSER_FLOW_WITH_RECOVERY_AUTHN_CODES);
         }
     }
 
@@ -287,7 +289,7 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
         testAppHelper.logout();
 
         // Disable OTP credential by admin REST API
-        testRealm().users().get(userId).disableCredentialType(Collections.singletonList(OTPCredentialModel.TYPE));
+        managedRealm.admin().users().get(userId).disableCredentialType(Collections.singletonList(OTPCredentialModel.TYPE));
 
         assertUserDontHaveDBCredentials();
         assertUserHasOTPCredentialInUserStorage(false);
@@ -317,17 +319,17 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
 
         // Get credentials by account REST. User should have OTP credential
         List<CredentialMetadataRepresentation> otpCreds = getOtpCredentialFromAccountREST(accountCredentialsUrl, httpClient, tokenUtil);
-        Assert.assertEquals(1, otpCreds.size());
+        Assertions.assertEquals(1, otpCreds.size());
         String otpCredentialId = otpCreds.get(0).getCredential().getId();
 
         // Delete OTP credential from federated storage
         int deleteStatus = SimpleHttpDefault.doDelete(accountCredentialsUrl + "/" + otpCredentialId, oauth.httpClient().get())
                 .auth(accountToken).acceptJson().asStatus();
-        Assert.assertEquals(204, deleteStatus);
+        Assertions.assertEquals(204, deleteStatus);
 
         // Get credentials by account REST. User should not have OTP credential
         otpCreds = getOtpCredentialFromAccountREST(accountCredentialsUrl, httpClient, tokenUtil);
-        Assert.assertEquals(0, otpCreds.size());
+        Assertions.assertEquals(0, otpCreds.size());
 
         assertUserDontHaveDBCredentials();
         assertUserHasOTPCredentialInUserStorage(false);
@@ -348,7 +350,7 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
         assertUserDontHaveDBCredentials();
         assertUserHasOTPCredentialInUserStorage(true);
 
-        UserResource user = testRealm().users().get(userId);
+        UserResource user = managedRealm.admin().users().get(userId);
 
         // Disable OTP credential for the user through REST endpoint
         UserRepresentation userRep = user.toRepresentation();
@@ -371,14 +373,14 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
         getCleanup().addUserId(userId);
 
         // Uses same parameters as admin console when searching users
-        List<UserRepresentation> users = testRealm().users().search("searching", 0, 20, true);
+        List<UserRepresentation> users = managedRealm.admin().users().search("searching", 0, 20, true);
         Assert.assertNames(users, "searching");
     }
 
     // return created totpSecret
     private String setupOTPForUserWithRequiredAction(String userId, boolean logoutOtherSessions) throws URISyntaxException, IOException {
         // Add required action to the user to reset OTP
-        UserResource user = testRealm().users().get(userId);
+        UserResource user = managedRealm.admin().users().get(userId);
         UserRepresentation userRep = user.toRepresentation();
         userRep.setRequiredActions(Arrays.asList(UserModel.RequiredAction.CONFIGURE_TOTP.toString()));
         user.update(userRep);
@@ -406,7 +408,7 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
 
     private List<String> setupRecoveryKeysForUserWithRequiredAction(String userId, boolean logoutOtherSessions) throws URISyntaxException, IOException {
         // Add required action to the user to reset RecoveryKeys
-        UserResource user = testRealm().users().get(userId);
+        UserResource user = managedRealm.admin().users().get(userId);
         UserRepresentation userRep = user.toRepresentation();
         userRep.setRequiredActions(Arrays.asList(UserModel.RequiredAction.CONFIGURE_RECOVERY_AUTHN_CODES.name()));
         user.update(userRep);
@@ -437,7 +439,7 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
         testingClient.server().run(session -> {
             RealmModel realm1 = session.realms().getRealmByName("test");
             UserModel user1 = session.users().getUserByUsername(realm1, "otp1");
-            Assert.assertEquals(0, user1.credentialManager().getStoredCredentialsStream().count());
+            Assertions.assertEquals(0, user1.credentialManager().getStoredCredentialsStream().count());
         });
     }
 
@@ -447,7 +449,7 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
                     .getProviderFactory(UserStorageProvider.class, BackwardsCompatibilityUserStorageFactory.PROVIDER_ID);
             return storageFactory.hasUserOTP("otp1");
         }, Boolean.class);
-        Assert.assertEquals(expectedUserHasOTP, hasUserOTP);
+        Assertions.assertEquals(expectedUserHasOTP, hasUserOTP);
     }
 
     private void assertUserHasRecoveryKeysCredentialInUserStorage(boolean expectedUserHasRecoveryKeys) {
@@ -456,7 +458,7 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
                     .getProviderFactory(UserStorageProvider.class, BackwardsCompatibilityUserStorageFactory.PROVIDER_ID);
             return storageFactory.hasRecoveryCodes("otp1");
         }, Boolean.class);
-        Assert.assertEquals(expectedUserHasRecoveryKeys, hasRecoveryKeys);
+        Assertions.assertEquals(expectedUserHasRecoveryKeys, hasRecoveryKeys);
     }
 
     private List<CredentialMetadataRepresentation> getOtpCredentialFromAccountREST(String accountCredentialsUrl, CloseableHttpClient httpClient, TokenUtil tokenUtil) throws IOException {
@@ -475,7 +477,7 @@ public class BackwardsCompatibilityUserStorageTest extends AbstractTestRealmKeyc
         enterRecoveryAuthnCodePage.setDriver(driver);
         enterRecoveryAuthnCodePage.assertCurrent();
         int requestedCode = enterRecoveryAuthnCodePage.getRecoveryAuthnCodeToEnterNumber();
-        org.junit.Assert.assertEquals("Incorrect code presented to login", expectedCode, requestedCode);
+        Assertions.assertEquals(expectedCode, requestedCode, "Incorrect code presented to login");
         enterRecoveryAuthnCodePage.enterRecoveryAuthnCode(generatedRecoveryAuthnCodes.get(requestedCode));
     }
 

@@ -17,8 +17,14 @@
 
 package org.keycloak.services;
 
-import io.opentelemetry.api.trace.Span;
+import java.net.URI;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+
 import jakarta.ws.rs.core.HttpHeaders;
+
 import org.keycloak.Token;
 import org.keycloak.common.ClientConnection;
 import org.keycloak.http.HttpRequest;
@@ -31,27 +37,22 @@ import org.keycloak.models.KeycloakContext;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakUriInfo;
 import org.keycloak.models.OrganizationModel;
+import org.keycloak.models.Permissions;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.representations.JsonWebToken;
 import org.keycloak.sessions.AuthenticationSessionModel;
-import org.keycloak.theme.Theme;
 import org.keycloak.tracing.TracingAttributes;
 import org.keycloak.tracing.TracingProvider;
 import org.keycloak.urls.UrlType;
 
-import java.net.URI;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
+import io.opentelemetry.api.trace.Span;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
  */
 public abstract class DefaultKeycloakContext implements KeycloakContext {
-
     private RealmModel realm;
 
     private ClientModel client;
@@ -68,9 +69,11 @@ public abstract class DefaultKeycloakContext implements KeycloakContext {
     private HttpResponse response;
     private ClientConnection clientConnection;
     private Token bearerToken;
+    private final Permissions permissions;
 
     public DefaultKeycloakContext(KeycloakSession session) {
         this.session = session;
+        this.permissions = new DefaultPermissions(session, this);
     }
 
     @Override
@@ -100,12 +103,7 @@ public abstract class DefaultKeycloakContext implements KeycloakContext {
         return getUri(UrlType.FRONTEND);
     }
 
-    /**
-     * @deprecated
-     * Use {@link #getHttpRequest()} to obtain the request headers.
-     * @return
-     */
-    @Deprecated
+  
     @Override
     public HttpHeaders getRequestHeaders() {
         return getHttpRequest().getHttpHeaders();
@@ -304,9 +302,10 @@ public abstract class DefaultKeycloakContext implements KeycloakContext {
             String issuer = jwt.getIssuer();
             String realmName = issuer.substring(issuer.lastIndexOf("/") + 1);
             RealmModel realm = session.realms().getRealmByName(realmName);
+            String id = jwt.getSubject();
 
-            if (realm != null) {
-                user = session.users().getUserById(realm, jwt.getSubject());
+            if (realm != null && id != null) {
+                user = session.users().getUserById(realm, id);
             }
         }
 
@@ -319,5 +318,10 @@ public abstract class DefaultKeycloakContext implements KeycloakContext {
 
     private MappedDiagnosticContextProvider mdc() {
         return MappedDiagnosticContextUtil.getMappedDiagnosticContextProvider(session);
+    }
+
+    @Override
+    public Permissions getPermissions() {
+        return permissions;
     }
 }

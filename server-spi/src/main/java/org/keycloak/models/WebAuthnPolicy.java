@@ -22,8 +22,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.jboss.logging.Logger;
 import org.keycloak.crypto.Algorithm;
+
+import org.jboss.logging.Logger;
 
 public class WebAuthnPolicy implements Serializable {
 
@@ -42,6 +43,7 @@ public class WebAuthnPolicy implements Serializable {
     protected List<String> acceptableAaguids;
     protected List<String> extraOrigins;
     protected Boolean passkeysEnabled; // only used for passwordless
+    protected String mediation; // only used for passwordless
 
     public WebAuthnPolicy() {
     }
@@ -147,5 +149,13 @@ public class WebAuthnPolicy implements Serializable {
 
     public void setPasskeysEnabled(Boolean passkeysEnabled) {
         this.passkeysEnabled = passkeysEnabled;
+    }
+
+    public String getMediation() {
+        return mediation;
+    }
+
+    public void setMediation(String mediation) {
+        this.mediation = mediation;
     }
 }

@@ -22,10 +22,11 @@ package org.keycloak.testsuite.pages;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-import org.junit.Assert;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.common.util.KeycloakUriBuilder;
 import org.keycloak.services.Urls;
+
+import org.junit.jupiter.api.Assertions;
 import org.openqa.selenium.By;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.WebElement;
@@ -73,7 +74,7 @@ public class InstalledAppRedirectPage extends AbstractPage {
 
 
     public String getSuccessCode() {
-        Assert.assertEquals("Success code", getPageTitleText());
+        Assertions.assertEquals("Success code", getPageTitleText());
         return code.getAttribute("value");
     }
 

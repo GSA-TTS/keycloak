@@ -24,33 +24,26 @@ import java.util.Optional;
 import java.util.ServiceLoader;
 
 import org.keycloak.Config;
-import org.keycloak.common.Profile;
 import org.keycloak.compatibility.CompatibilityMetadataProvider;
-import org.keycloak.config.ConfigProviderFactory;
 import org.keycloak.quarkus.runtime.cli.PropertyException;
+import org.keycloak.quarkus.runtime.configuration.MicroProfileConfigProviderFactory;
+
 import picocli.CommandLine;
 
-public abstract class AbstractUpdatesCommand extends AbstractStartCommand {
-
-    private static final int FEATURE_DISABLED_EXIT_CODE = 4;
+public abstract class AbstractUpdatesCommand extends AbstractAutoBuildCommand {
 
     @CommandLine.Mixin
     OptimizedMixin optimizedMixin = new OptimizedMixin();
 
     @Override
-    protected boolean shouldStart() {
+    public boolean shouldStart() {
         return false;
     }
 
     @Override
     protected Optional<Integer> callCommand() {
         return super.callCommand().or(() -> {
-            if (!Profile.isAnyVersionOfFeatureEnabled(Profile.Feature.ROLLING_UPDATES_V1)) {
-                printFeatureDisabled();
-                return Optional.of(FEATURE_DISABLED_EXIT_CODE);
-            }
             loadConfiguration();
-            printPreviewWarning();
             validateConfig();
             return Optional.of(executeAction());
         });
@@ -62,16 +55,6 @@ public abstract class AbstractUpdatesCommand extends AbstractStartCommand {
         if (file.isDirectory()) {
             throw new PropertyException("Incorrect argument %s. Path '%s' is not a valid file.".formatted(option, file.getAbsolutePath()));
         }
-    }
-
-    private void printPreviewWarning() {
-        if (Profile.isFeatureEnabled(Profile.Feature.ROLLING_UPDATES_V2) && (Profile.Feature.ROLLING_UPDATES_V2.getType() == Profile.Feature.Type.PREVIEW || Profile.Feature.ROLLING_UPDATES_V2.getType() == Profile.Feature.Type.EXPERIMENTAL)) {
-            picocli.error("Warning! This command is '" + Profile.Feature.ROLLING_UPDATES_V2.getType() + "' and is not recommended for use in production. It may change or be removed at a future release.");
-        }
-    }
-
-    void printFeatureDisabled() {
-        picocli.error("Unable to use this command. None of the versions of the feature '" + Profile.Feature.ROLLING_UPDATES_V1.getUnversionedKey() + "' is enabled.");
     }
 
     static Map<String, CompatibilityMetadataProvider> loadAllProviders() {
@@ -91,14 +74,14 @@ public abstract class AbstractUpdatesCommand extends AbstractStartCommand {
     }
 
     private static void loadConfiguration() {
-        // Initialize config
-        var configProvider = ServiceLoader.load(ConfigProviderFactory.class)
-                .stream()
-                .findFirst()
-                .map(ServiceLoader.Provider::get)
-                .flatMap(ConfigProviderFactory::create)
-                .orElseThrow(() -> new RuntimeException("Failed to load Keycloak Configuration"));
-        Config.init(configProvider);
+        // Initialize config without directly referencing MicroProfileConfigProvider
+        // as that currently causing classloading issue during command creation - when a provider jar is deleted
+        Config.init(new MicroProfileConfigProviderFactory().create());
+    }
+
+    @Override
+    protected OptimizedMixin getOptimizedMixin() {
+        return optimizedMixin;
     }
 
 }

@@ -17,36 +17,49 @@
 
 package org.keycloak.tests.admin.authz.fgap;
 
+import java.util.List;
+import java.util.Set;
+
 import jakarta.ws.rs.ForbiddenException;
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.Entity;
+import jakarta.ws.rs.client.WebTarget;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import org.junit.jupiter.api.Test;
+
 import org.keycloak.admin.client.Keycloak;
+import org.keycloak.admin.client.resource.BearerAuthFilter;
 import org.keycloak.admin.client.resource.ClientScopeResource;
+import org.keycloak.admin.ui.rest.model.RoleDeleteRequest;
 import org.keycloak.authorization.fgap.AdminPermissionsSchema;
+import org.keycloak.models.AdminRoles;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.ClientScopeRepresentation;
+import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.authorization.UserPolicyRepresentation;
 import org.keycloak.testframework.annotations.InjectAdminClient;
+import org.keycloak.testframework.annotations.InjectKeycloakUrls;
 import org.keycloak.testframework.annotations.KeycloakIntegrationTest;
+import org.keycloak.testframework.server.KeycloakUrls;
 import org.keycloak.testframework.util.ApiUtil;
 
-import java.util.List;
-import java.util.Set;
+import org.junit.jupiter.api.Test;
+
+import static org.keycloak.authorization.fgap.AdminPermissionsSchema.MANAGE_MEMBERSHIP;
+import static org.keycloak.authorization.fgap.AdminPermissionsSchema.MAP_ROLE;
+import static org.keycloak.authorization.fgap.AdminPermissionsSchema.MAP_ROLES;
+import static org.keycloak.authorization.fgap.AdminPermissionsSchema.MAP_ROLE_CLIENT_SCOPE;
+import static org.keycloak.authorization.fgap.AdminPermissionsSchema.MAP_ROLE_COMPOSITE;
+import static org.keycloak.authorization.fgap.AdminPermissionsSchema.VIEW;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.junit.Assert.fail;
-import static org.keycloak.authorization.fgap.AdminPermissionsSchema.MAP_ROLE;
-import static org.keycloak.authorization.fgap.AdminPermissionsSchema.MAP_ROLES;
-import static org.keycloak.authorization.fgap.AdminPermissionsSchema.MAP_ROLE_CLIENT_SCOPE;
-import static org.keycloak.authorization.fgap.AdminPermissionsSchema.MAP_ROLE_COMPOSITE;
-import static org.keycloak.authorization.fgap.AdminPermissionsSchema.VIEW;
-import org.keycloak.models.AdminRoles;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @KeycloakIntegrationTest
 public class RoleResourceTypeEvaluationTest extends AbstractPermissionTest {
@@ -54,16 +67,17 @@ public class RoleResourceTypeEvaluationTest extends AbstractPermissionTest {
     @InjectAdminClient(mode = InjectAdminClient.Mode.MANAGED_REALM, client = "myclient", user = "myadmin")
     Keycloak realmAdminClient;
 
+    @InjectKeycloakUrls
+    KeycloakUrls keycloakUrls;
+
     private final String rolesType = AdminPermissionsSchema.ROLES.getType();
 
     @Test
     public void testMapRoleClientScopeAllRoles() {
         UserRepresentation myadmin = realm.admin().users().search("myadmin").get(0);
-        ClientRepresentation myclient = realm.admin().clients().findByClientId("myclient").get(0);
-
-        UserPolicyRepresentation onlyMyAdminUserPolicy = createUserPolicy(realm, client, "Only My Admin User Policy", myadmin.getId());
+        UserPolicyRepresentation onlyMyAdminUserPolicy = createUserPolicy(realm, adminPermissionsClient, "Only My Admin User Policy", myadmin.getId());
         // we need to be able to list client scopes
-        createAllPermission(client, AdminPermissionsSchema.CLIENTS.getType(), onlyMyAdminUserPolicy, Set.of(VIEW));
+        createAllPermission(adminPermissionsClient, AdminPermissionsSchema.CLIENTS.getType(), onlyMyAdminUserPolicy, Set.of(VIEW));
 
         // create a client-scope
         ClientScopeRepresentation clientScope = new ClientScopeRepresentation();
@@ -71,7 +85,7 @@ public class RoleResourceTypeEvaluationTest extends AbstractPermissionTest {
         clientScope.setProtocol("openid-connect");
         try (Response response = realm.admin().clientScopes().create(clientScope)) {
             assertThat(response.getStatus(), equalTo(Response.Status.CREATED.getStatusCode()));
-            clientScope.setId(ApiUtil.handleCreatedResponse(response));
+            clientScope.setId(ApiUtil.getCreatedId(response));
             realm.cleanup().add(r -> r.clientScopes().get(clientScope.getId()).remove());
         }
 
@@ -81,7 +95,7 @@ public class RoleResourceTypeEvaluationTest extends AbstractPermissionTest {
         assertThat(availableRoles, empty());
 
         // grant the permission to map all roles to client scopes
-        createAllPermission(client, rolesType, onlyMyAdminUserPolicy, Set.of(MAP_ROLE_CLIENT_SCOPE));
+        createAllPermission(adminPermissionsClient, rolesType, onlyMyAdminUserPolicy, Set.of(MAP_ROLE_CLIENT_SCOPE));
 
         availableRoles = clientScopeResource.getScopeMappings().realmLevel().listAvailable();
         assertThat(availableRoles, not(empty()));
@@ -116,8 +130,8 @@ public class RoleResourceTypeEvaluationTest extends AbstractPermissionTest {
         realm.admin().users().get(myadmin.getId()).roles().clientLevel(clientId).add(List.of(manageRealmRole));
         realmAdminClient.tokenManager().grantToken();
 
-        UserPolicyRepresentation onlyMyAdminUserPolicy = createUserPolicy(realm, client, "Only My Admin User Policy", myadmin.getId());
-        createAllPermission(client, rolesType, onlyMyAdminUserPolicy, Set.of(MAP_ROLE_COMPOSITE));
+        UserPolicyRepresentation onlyMyAdminUserPolicy = createUserPolicy(realm, adminPermissionsClient, "Only My Admin User Policy", myadmin.getId());
+        createAllPermission(adminPermissionsClient, rolesType, onlyMyAdminUserPolicy, Set.of(MAP_ROLE_COMPOSITE));
 
         realmAdminClient.realm(realm.getName()).roles().get("myRole").addComposites(List.of(subRole));
     }
@@ -148,9 +162,9 @@ public class RoleResourceTypeEvaluationTest extends AbstractPermissionTest {
         }
 
         // create required permissions
-        UserPolicyRepresentation onlyMyAdminUserPolicy = createUserPolicy(realm, client, "Only My Admin User Policy", myadmin.getId());
-        createPermission(client, role.getId(), rolesType, Set.of(MAP_ROLE), onlyMyAdminUserPolicy);
-        createPermission(client, myadmin.getId(), AdminPermissionsSchema.USERS_RESOURCE_TYPE, Set.of(MAP_ROLES), onlyMyAdminUserPolicy);
+        UserPolicyRepresentation onlyMyAdminUserPolicy = createUserPolicy(realm, adminPermissionsClient, "Only My Admin User Policy", myadmin.getId());
+        createPermission(adminPermissionsClient, role.getId(), rolesType, Set.of(MAP_ROLE), onlyMyAdminUserPolicy);
+        createPermission(adminPermissionsClient, myadmin.getId(), AdminPermissionsSchema.USERS_RESOURCE_TYPE, Set.of(MAP_ROLES), onlyMyAdminUserPolicy);
 
         // should pass
         realmAdminClient.realm(realm.getName()).users().get(myadmin.getId()).roles().realmLevel().add(List.of(role));
@@ -171,9 +185,9 @@ public class RoleResourceTypeEvaluationTest extends AbstractPermissionTest {
         RoleRepresentation createClientRole = realm.admin().clients().get(realmManagement.getId()).roles().get(AdminRoles.CREATE_CLIENT).toRepresentation();
 
         // create permission to map roles from all clients and to all users
-        UserPolicyRepresentation onlyMyAdminUserPolicy = createUserPolicy(realm, client, "Only My Admin User Policy", myadmin.getId());
-        createAllPermission(client, AdminPermissionsSchema.CLIENTS_RESOURCE_TYPE, onlyMyAdminUserPolicy, Set.of(MAP_ROLES));
-        createAllPermission(client, AdminPermissionsSchema.USERS_RESOURCE_TYPE, onlyMyAdminUserPolicy, Set.of(MAP_ROLES));
+        UserPolicyRepresentation onlyMyAdminUserPolicy = createUserPolicy(realm, adminPermissionsClient, "Only My Admin User Policy", myadmin.getId());
+        createAllPermission(adminPermissionsClient, AdminPermissionsSchema.CLIENTS_RESOURCE_TYPE, onlyMyAdminUserPolicy, Set.of(MAP_ROLES));
+        createAllPermission(adminPermissionsClient, AdminPermissionsSchema.USERS_RESOURCE_TYPE, onlyMyAdminUserPolicy, Set.of(MAP_ROLES));
 
         // create a role
         RoleRepresentation role = new RoleRepresentation();
@@ -192,6 +206,98 @@ public class RoleResourceTypeEvaluationTest extends AbstractPermissionTest {
             fail("Expected exception wasn't thrown.");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(ForbiddenException.class));
+        }
+
+        RoleRepresentation realmAdminRole = realm.admin().clients().get(realmManagement.getId()).roles().get(AdminRoles.REALM_ADMIN).toRepresentation();
+        realm.admin().users().get(myadmin.getId()).roles().clientLevel(realmManagement.getId()).add(List.of(realmAdminRole));
+        // should pass, user is a realm admin
+        realmAdminClient.realm(realm.getName()).users().get(myadmin.getId()).roles().clientLevel(realmManagement.getId())
+                .add(List.of(createClientRole));
+    }
+
+    @Test
+    public void testUiExtRoleMappingDeleteRespectsPerRolePermission() {
+        UserRepresentation myadmin = realm.admin().users().search("myadmin").get(0);
+        UserRepresentation targetUser = createUser("targetUser");
+
+        RoleRepresentation allowedRole = new RoleRepresentation();
+        allowedRole.setName("allowedRole");
+        realm.admin().roles().create(allowedRole);
+        allowedRole = realm.admin().roles().get("allowedRole").toRepresentation();
+        realm.cleanup().add(r -> r.roles().get("allowedRole").remove());
+
+        RoleRepresentation restrictedRole = new RoleRepresentation();
+        restrictedRole.setName("restrictedRole");
+        realm.admin().roles().create(restrictedRole);
+        restrictedRole = realm.admin().roles().get("restrictedRole").toRepresentation();
+        realm.cleanup().add(r -> r.roles().get("restrictedRole").remove());
+
+        // assign both roles to the target user (as realm admin)
+        realm.admin().users().get(targetUser.getId()).roles().realmLevel().add(List.of(allowedRole, restrictedRole));
+
+        // grant myadmin user-level MAP_ROLES on the target user and role-level MAP_ROLE only for allowedRole
+        UserPolicyRepresentation policy = createUserPolicy(realm, adminPermissionsClient, "Only My Admin User Policy", myadmin.getId());
+        createPermission(adminPermissionsClient, targetUser.getId(), AdminPermissionsSchema.USERS_RESOURCE_TYPE, Set.of(MAP_ROLES), policy);
+        createPermission(adminPermissionsClient, allowedRole.getId(), rolesType, Set.of(MAP_ROLE), policy);
+
+        try (Client httpClient = Keycloak.getClientProvider().newRestEasyClient(null, null, true)) {
+            WebTarget target = httpClient.target(keycloakUrls.getBaseUrl().toString())
+                    .path("admin").path("realms").path(realm.getName())
+                    .path("ui-ext").path("role-mapping-delete").path("users").path(targetUser.getId())
+                    .register(new BearerAuthFilter(realmAdminClient.tokenManager()));
+
+            // deleting restrictedRole should be forbidden
+            Response response = target.request(MediaType.APPLICATION_JSON)
+                    .post(Entity.json(List.of(new RoleDeleteRequest(restrictedRole.getId(), restrictedRole.getName(), null))));
+            assertThat(response.getStatus(), equalTo(Response.Status.FORBIDDEN.getStatusCode()));
+
+            // deleting allowedRole should succeed
+            response = target.request(MediaType.APPLICATION_JSON)
+                    .post(Entity.json(List.of(new RoleDeleteRequest(allowedRole.getId(), allowedRole.getName(), null))));
+            assertThat(response.getStatus(), equalTo(Response.Status.NO_CONTENT.getStatusCode()));
+        }
+    }
+
+    @Test
+    public void testUiExtGroupRoleMappingDeleteRespectsPerRolePermission() {
+        UserRepresentation myadmin = realm.admin().users().search("myadmin").get(0);
+        GroupRepresentation group = createGroup("testGroup");
+
+        RoleRepresentation allowedRole = new RoleRepresentation();
+        allowedRole.setName("allowedRole");
+        realm.admin().roles().create(allowedRole);
+        allowedRole = realm.admin().roles().get("allowedRole").toRepresentation();
+        realm.cleanup().add(r -> r.roles().get("allowedRole").remove());
+
+        RoleRepresentation restrictedRole = new RoleRepresentation();
+        restrictedRole.setName("restrictedRole");
+        realm.admin().roles().create(restrictedRole);
+        restrictedRole = realm.admin().roles().get("restrictedRole").toRepresentation();
+        realm.cleanup().add(r -> r.roles().get("restrictedRole").remove());
+
+        // assign both roles to the group (as realm admin)
+        realm.admin().groups().group(group.getId()).roles().realmLevel().add(List.of(allowedRole, restrictedRole));
+
+        // grant myadmin group-level MANAGE_MEMBERSHIP and role-level MAP_ROLE only for allowedRole
+        UserPolicyRepresentation policy = createUserPolicy(realm, adminPermissionsClient, "Only My Admin User Policy", myadmin.getId());
+        createGroupPermission(group, Set.of(MANAGE_MEMBERSHIP), policy);
+        createPermission(adminPermissionsClient, allowedRole.getId(), rolesType, Set.of(MAP_ROLE), policy);
+
+        try (Client httpClient = Keycloak.getClientProvider().newRestEasyClient(null, null, true)) {
+            WebTarget target = httpClient.target(keycloakUrls.getBaseUrl().toString())
+                    .path("admin").path("realms").path(realm.getName())
+                    .path("ui-ext").path("role-mapping-delete").path("groups").path(group.getId())
+                    .register(new BearerAuthFilter(realmAdminClient.tokenManager()));
+
+            // deleting restrictedRole should be forbidden
+            Response response = target.request(MediaType.APPLICATION_JSON)
+                    .post(Entity.json(List.of(new RoleDeleteRequest(restrictedRole.getId(), restrictedRole.getName(), null))));
+            assertThat(response.getStatus(), equalTo(Response.Status.FORBIDDEN.getStatusCode()));
+
+            // deleting allowedRole should succeed
+            response = target.request(MediaType.APPLICATION_JSON)
+                    .post(Entity.json(List.of(new RoleDeleteRequest(allowedRole.getId(), allowedRole.getName(), null))));
+            assertThat(response.getStatus(), equalTo(Response.Status.NO_CONTENT.getStatusCode()));
         }
     }
 }

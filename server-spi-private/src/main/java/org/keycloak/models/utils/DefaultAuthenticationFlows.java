@@ -17,6 +17,12 @@
 
 package org.keycloak.models.utils;
 
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import org.keycloak.Config;
 import org.keycloak.common.Profile;
 import org.keycloak.common.Profile.Feature;
@@ -25,13 +31,8 @@ import org.keycloak.models.AuthenticationFlowModel;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RequiredCredentialModel;
+import org.keycloak.models.credential.WebAuthnCredentialModel;
 import org.keycloak.representations.idm.IdentityProviderRepresentation;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.LinkedList;
 
 
 /**
@@ -374,6 +375,22 @@ public class DefaultAuthenticationFlows {
         execution.setAuthenticatorFlow(false);
         realm.addAuthenticatorExecution(execution);
 
+        if (Profile.isFeatureEnabled(Profile.Feature.PASSKEYS)) {
+            AuthenticatorConfigModel configModel = new AuthenticatorConfigModel();
+            configModel.setAlias("browser-conditional-credential");
+            configModel.setConfig(Map.of("credentials", WebAuthnCredentialModel.TYPE_PASSWORDLESS));
+            configModel = realm.addAuthenticatorConfig(configModel);
+
+            execution = new AuthenticationExecutionModel();
+            execution.setParentFlow(conditionalOTP.getId());
+            execution.setRequirement(AuthenticationExecutionModel.Requirement.REQUIRED);
+            execution.setAuthenticator("conditional-credential");
+            execution.setPriority(20);
+            execution.setAuthenticatorFlow(false);
+            execution.setAuthenticatorConfig(configModel.getId());
+            realm.addAuthenticatorExecution(execution);
+        }
+
         // otp processing
         execution = new AuthenticationExecutionModel();
         execution.setParentFlow(conditionalOTP.getId());
@@ -382,7 +399,7 @@ public class DefaultAuthenticationFlows {
             execution.setRequirement(AuthenticationExecutionModel.Requirement.REQUIRED);
         }
         execution.setAuthenticator("auth-otp-form");
-        execution.setPriority(20);
+        execution.setPriority(30);
         execution.setAuthenticatorFlow(false);
         realm.addAuthenticatorExecution(execution);
 
@@ -392,7 +409,7 @@ public class DefaultAuthenticationFlows {
             execution.setParentFlow(conditionalOTP.getId());
             execution.setRequirement(AuthenticationExecutionModel.Requirement.DISABLED);
             execution.setAuthenticator("webauthn-authenticator");
-            execution.setPriority(30);
+            execution.setPriority(40);
             execution.setAuthenticatorFlow(false);
             realm.addAuthenticatorExecution(execution);
         }
@@ -403,7 +420,7 @@ public class DefaultAuthenticationFlows {
             execution.setParentFlow(conditionalOTP.getId());
             execution.setRequirement(AuthenticationExecutionModel.Requirement.DISABLED);
             execution.setAuthenticator("auth-recovery-authn-code-form");
-            execution.setPriority(40);
+            execution.setPriority(50);
             execution.setAuthenticatorFlow(false);
             realm.addAuthenticatorExecution(execution);
         }
@@ -448,6 +465,7 @@ public class DefaultAuthenticationFlows {
     }
 
     public static void clientAuthFlow(RealmModel realm) {
+
         AuthenticationFlowModel clients = new AuthenticationFlowModel();
         clients.setAlias(CLIENT_AUTHENTICATION_FLOW);
         clients.setDescription("Base authentication for clients");
@@ -456,6 +474,18 @@ public class DefaultAuthenticationFlows {
         clients.setBuiltIn(true);
         clients = realm.addAuthenticationFlow(clients);
         realm.setClientAuthenticationFlow(clients);
+
+        // Attestation-Based Client Authentication is a stronger authentication method
+        //
+        if (Profile.isFeatureEnabled(Feature.CLIENT_AUTH_ABCA)) {
+            AuthenticationExecutionModel execution = new AuthenticationExecutionModel();
+            execution.setParentFlow(clients.getId());
+            execution.setRequirement(AuthenticationExecutionModel.Requirement.ALTERNATIVE);
+            execution.setAuthenticator("attestation-based");
+            execution.setPriority(5);
+            execution.setAuthenticatorFlow(false);
+            realm.addAuthenticatorExecution(execution);
+        }
 
         AuthenticationExecutionModel execution = new AuthenticationExecutionModel();
         execution.setParentFlow(clients.getId());
@@ -489,6 +519,15 @@ public class DefaultAuthenticationFlows {
         execution.setAuthenticatorFlow(false);
         realm.addAuthenticatorExecution(execution);
 
+        if (Profile.isFeatureEnabled(Feature.CLIENT_AUTH_FEDERATED)) {
+            execution = new AuthenticationExecutionModel();
+            execution.setParentFlow(clients.getId());
+            execution.setRequirement(AuthenticationExecutionModel.Requirement.ALTERNATIVE);
+            execution.setAuthenticator("federated-jwt");
+            execution.setPriority(50);
+            execution.setAuthenticatorFlow(false);
+            realm.addAuthenticatorExecution(execution);
+        }
     }
 
     public static void firstBrokerLoginFlow(RealmModel realm, boolean migrate) {
@@ -576,7 +615,7 @@ public class DefaultAuthenticationFlows {
         accountVerificationOptions.setTopLevel(false);
         accountVerificationOptions.setBuiltIn(true);
         accountVerificationOptions.setAlias("Account verification options");
-        accountVerificationOptions.setDescription("Method with which to verity the existing account");
+        accountVerificationOptions.setDescription("Method with which to verify the existing account");
         accountVerificationOptions.setProviderId("basic-flow");
         accountVerificationOptions = realm.addAuthenticationFlow(accountVerificationOptions);
         execution = new AuthenticationExecutionModel();
@@ -661,6 +700,22 @@ public class DefaultAuthenticationFlows {
         execution.setAuthenticatorFlow(false);
         realm.addAuthenticatorExecution(execution);
 
+        if (Profile.isFeatureEnabled(Profile.Feature.PASSKEYS)) {
+            AuthenticatorConfigModel configModel = new AuthenticatorConfigModel();
+            configModel.setAlias("first-broker-login-conditional-credential");
+            configModel.setConfig(Map.of("credentials", WebAuthnCredentialModel.TYPE_PASSWORDLESS));
+            configModel = realm.addAuthenticatorConfig(configModel);
+
+            execution = new AuthenticationExecutionModel();
+            execution.setParentFlow(conditionalOTP.getId());
+            execution.setRequirement(AuthenticationExecutionModel.Requirement.REQUIRED);
+            execution.setAuthenticator("conditional-credential");
+            execution.setPriority(20);
+            execution.setAuthenticatorFlow(false);
+            execution.setAuthenticatorConfig(configModel.getId());
+            realm.addAuthenticatorExecution(execution);
+        }
+
         execution = new AuthenticationExecutionModel();
         execution.setParentFlow(conditionalOTP.getId());
         execution.setRequirement(AuthenticationExecutionModel.Requirement.ALTERNATIVE);
@@ -668,7 +723,7 @@ public class DefaultAuthenticationFlows {
             execution.setRequirement(AuthenticationExecutionModel.Requirement.REQUIRED);
         }
         execution.setAuthenticator("auth-otp-form");
-        execution.setPriority(20);
+        execution.setPriority(30);
         execution.setAuthenticatorFlow(false);
         realm.addAuthenticatorExecution(execution);
 
@@ -678,7 +733,7 @@ public class DefaultAuthenticationFlows {
             execution.setParentFlow(conditionalOTP.getId());
             execution.setRequirement(AuthenticationExecutionModel.Requirement.DISABLED);
             execution.setAuthenticator("webauthn-authenticator");
-            execution.setPriority(30);
+            execution.setPriority(40);
             execution.setAuthenticatorFlow(false);
             realm.addAuthenticatorExecution(execution);
         }
@@ -689,7 +744,7 @@ public class DefaultAuthenticationFlows {
             execution.setParentFlow(conditionalOTP.getId());
             execution.setRequirement(AuthenticationExecutionModel.Requirement.DISABLED);
             execution.setAuthenticator("auth-recovery-authn-code-form");
-            execution.setPriority(40);
+            execution.setPriority(50);
             execution.setAuthenticatorFlow(false);
             realm.addAuthenticatorExecution(execution);
         }
@@ -757,7 +812,7 @@ public class DefaultAuthenticationFlows {
             execution.setParentFlow(flow.getId());
             execution.setRequirement(AuthenticationExecutionModel.Requirement.CONDITIONAL);
             execution.setFlowId(conditionalOrg.getId());
-            execution.setPriority(50);
+            execution.setPriority(60);
             execution.setAuthenticatorFlow(true);
             realm.addAuthenticatorExecution(execution);
 
@@ -783,6 +838,11 @@ public class DefaultAuthenticationFlows {
         if (!Profile.isFeatureEnabled(Feature.ORGANIZATION)) {
             return;
         }
+
+        if (isOrganizationAuthenticatorPresent(realm, flow.getId())) {
+            return;
+        }
+
         if (!Config.getAdminRealm().equals(realm.getName())) {
             // do not add the org flows to the master realm for now.
             AuthenticationFlowModel organizations = new AuthenticationFlowModel();
@@ -830,5 +890,18 @@ public class DefaultAuthenticationFlows {
             execution.setAuthenticatorFlow(false);
             realm.addAuthenticatorExecution(execution);
         }
+    }
+
+    private static boolean isOrganizationAuthenticatorPresent(RealmModel realm, String flowId) {
+        return flowId != null && realm.getAuthenticationExecutionsStream(flowId)
+                .anyMatch((e) -> isOrganizationAuthenticatorPresent(realm, e));
+    }
+
+    private static boolean isOrganizationAuthenticatorPresent(RealmModel realm, AuthenticationExecutionModel execution) {
+        if ("organization".equals(execution.getAuthenticator())) {
+            return true;
+        }
+
+        return isOrganizationAuthenticatorPresent(realm, execution.getFlowId());
     }
 }

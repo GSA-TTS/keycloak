@@ -2,10 +2,6 @@ package org.keycloak.testframework.clustering;
 
 import java.util.HashMap;
 
-import io.vertx.httpproxy.ProxyContext;
-import io.vertx.httpproxy.ProxyInterceptor;
-import io.vertx.httpproxy.ProxyResponse;
-import org.jboss.logging.Logger;
 import org.keycloak.testframework.server.ClusteredKeycloakServer;
 import org.keycloak.testframework.server.KeycloakUrls;
 
@@ -14,6 +10,10 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpServer;
 import io.vertx.httpproxy.HttpProxy;
+import io.vertx.httpproxy.ProxyContext;
+import io.vertx.httpproxy.ProxyInterceptor;
+import io.vertx.httpproxy.ProxyResponse;
+import org.jboss.logging.Logger;
 
 public class LoadBalancer {
 
@@ -24,6 +24,8 @@ public class LoadBalancer {
     private final HashMap<Integer, Origin> urls = new HashMap<>();
     private final Vertx vertx;
     private final HttpProxy proxy;
+
+    private int currentNodeIndex = 0;
 
     public LoadBalancer(ClusteredKeycloakServer server) {
         this.server = server;
@@ -38,7 +40,7 @@ public class LoadBalancer {
                 return ProxyInterceptor.super.handleProxyRequest(context);
             }
         });
-        node(0);
+        node(currentNodeIndex);
 
         HttpServer proxyServer = vertx.createHttpServer();
         proxyServer.requestHandler(proxy).listen(9999, "localhost");
@@ -46,12 +48,21 @@ public class LoadBalancer {
 
     public void node(int index) {
         Origin origin = origin(index);
+        currentNodeIndex = index;
         LOGGER.debugf("Setting proxy origin to: %s:%d", origin.host, origin.port);
         proxy.origin(origin.port, origin.host);
     }
 
     public KeycloakUrls nodeUrls(int index) {
         return origin(index).urls;
+    }
+
+    public int nodeCount() {
+        return server.clusterSize();
+    }
+
+    public void nextNode() {
+        node((currentNodeIndex + 1) % nodeCount());
     }
 
     private Origin origin(int index) {

@@ -17,13 +17,6 @@
 
 package org.keycloak.common;
 
-import org.jboss.logging.Logger;
-import org.keycloak.common.Profile.Feature.Type;
-import org.keycloak.common.profile.ProfileConfigResolver;
-import org.keycloak.common.profile.ProfileConfigResolver.FeatureConfig;
-import org.keycloak.common.profile.ProfileException;
-import org.keycloak.common.util.KerberosJdkProvider;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -38,6 +31,14 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.keycloak.common.Profile.Feature.Type;
+import org.keycloak.common.profile.ProfileConfigResolver;
+import org.keycloak.common.profile.ProfileConfigResolver.FeatureConfig;
+import org.keycloak.common.profile.ProfileException;
+import org.keycloak.common.util.KerberosJdkProvider;
+
+import org.jboss.logging.Logger;
+
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
@@ -49,15 +50,19 @@ public class Profile {
     public enum Feature {
         AUTHORIZATION("Authorization Service", Type.DEFAULT),
 
+        AUTHZEN("OpenID AuthZen Authorization", Type.EXPERIMENTAL),
+
         ACCOUNT_API("Account Management REST API", Type.DEFAULT),
 
         ACCOUNT_V3("Account Console version 3", Type.DEFAULT, 3, Feature.ACCOUNT_API),
 
-        ADMIN_FINE_GRAINED_AUTHZ("Fine-Grained Admin Permissions", Type.PREVIEW, 1),
+        ADMIN_FINE_GRAINED_AUTHZ("Fine-Grained Admin Permissions", Type.DEPRECATED, 1),
 
         ADMIN_FINE_GRAINED_AUTHZ_V2("Fine-Grained Admin Permissions version 2", Type.DEFAULT, 2, Feature.AUTHORIZATION),
 
         ADMIN_API("Admin API", Type.DEFAULT),
+
+        CLIENT_ADMIN_API_V2("Client Admin API v2", Type.EXPERIMENTAL, 2, Feature.ADMIN_API),
 
         ADMIN_V2("New Admin Console", Type.DEFAULT, 2, Feature.ADMIN_API),
 
@@ -73,9 +78,11 @@ public class Profile {
 
         SCRIPTS("Write custom authenticators using JavaScript", Type.PREVIEW),
 
-        TOKEN_EXCHANGE("Token Exchange Service", Type.PREVIEW, 1),
+        TOKEN_EXCHANGE("Token Exchange Service", Type.PREVIEW, 1, true, null, null),
         TOKEN_EXCHANGE_STANDARD_V2("Standard Token Exchange version 2", Type.DEFAULT, 2),
         TOKEN_EXCHANGE_EXTERNAL_INTERNAL_V2("External to Internal Token Exchange version 2", Type.EXPERIMENTAL, 2),
+
+        JWT_AUTHORIZATION_GRANT("JWT Profile for Oauth 2.0 Authorization Grant", Type.DEFAULT),
 
         WEB_AUTHN("W3C Web Authentication (WebAuthn)", Type.DEFAULT),
 
@@ -85,11 +92,19 @@ public class Profile {
 
         PAR("OAuth 2.0 Pushed Authorization Requests (PAR)", Type.DEFAULT),
 
-        DYNAMIC_SCOPES("Dynamic OAuth 2.0 scopes", Type.EXPERIMENTAL),
+        PARAMETERIZED_SCOPES("Parameterized OAuth 2.0 client scopes", Type.EXPERIMENTAL),
 
         CLIENT_SECRET_ROTATION("Client Secret Rotation", Type.PREVIEW),
 
         STEP_UP_AUTHENTICATION("Step-up Authentication", Type.DEFAULT),
+        STEP_UP_AUTHENTICATION_SAML("Step-up Authentication Saml", Type.PREVIEW, Feature.STEP_UP_AUTHENTICATION),
+
+        CLIENT_AUTH_FEDERATED("Authenticates client based on assertions issued by identity provider", Type.DEFAULT),
+        CLIENT_AUTH_ABCA("Attestation-Based Client Authentication", Type.EXPERIMENTAL),
+
+        SPIFFE("SPIFFE trust relationship provider", Type.PREVIEW),
+
+        KUBERNETES_SERVICE_ACCOUNTS("Kubernetes service accounts trust relationship provider", Type.DEFAULT),
 
         // Check if kerberos is available in underlying JVM and auto-detect if feature should be enabled or disabled by default based on that
         KERBEROS("Kerberos", Type.DEFAULT, 1, () -> KerberosJdkProvider.getProvider().isKerberosAvailable()),
@@ -100,13 +115,15 @@ public class Profile {
 
         FIPS("FIPS 140-2 mode", Type.DISABLED_BY_DEFAULT),
 
-        DPOP("OAuth 2.0 Demonstrating Proof-of-Possession at the Application Layer", Type.PREVIEW),
+        DPOP("OAuth 2.0 Demonstrating Proof-of-Possession at the Application Layer", Type.DEFAULT),
 
         DEVICE_FLOW("OAuth 2.0 Device Authorization Grant", Type.DEFAULT),
 
         TRANSIENT_USERS("Transient users for brokering", Type.EXPERIMENTAL),
 
         MULTI_SITE("Multi-site support", Type.DISABLED_BY_DEFAULT, FeatureUpdatePolicy.SHUTDOWN),
+
+        CACHELESS("Store authentication sessions, action tokens and login failure data in the database, removing the need for Infinispan caches.", Type.EXPERIMENTAL, FeatureUpdatePolicy.SHUTDOWN),
 
         CLUSTERLESS("Store all session data, work cache and login failure data in an external Infinispan cluster.", Type.EXPERIMENTAL, FeatureUpdatePolicy.SHUTDOWN),
 
@@ -117,14 +134,19 @@ public class Profile {
         PERSISTENT_USER_SESSIONS("Persistent online user sessions across restarts and upgrades", Type.DEFAULT, FeatureUpdatePolicy.SHUTDOWN),
 
         OID4VC_VCI("Support for the OID4VCI protocol as part of OID4VC.", Type.EXPERIMENTAL),
+        OID4VC_VCI_PREAUTH_CODE("Support for credential offers with `pre-authorized_code` grant.", Type.EXPERIMENTAL, OID4VC_VCI),
+        OID4VC_VCI_REST_CREDENTIAL_OFFER("Support for the REST endpoint to create credential offers.", Type.EXPERIMENTAL, OID4VC_VCI),
 
-        OPENTELEMETRY("OpenTelemetry Tracing", Type.DEFAULT),
+        OPENTELEMETRY("OpenTelemetry support", Type.DEFAULT),
+        OPENTELEMETRY_LOGS("OpenTelemetry Logs support", Type.PREVIEW, OPENTELEMETRY),
+        OPENTELEMETRY_METRICS("Micrometer to OpenTelemetry bridge support for metrics", Type.EXPERIMENTAL, OPENTELEMETRY),
 
         DECLARATIVE_UI("declarative ui spi", Type.EXPERIMENTAL),
 
         ORGANIZATION("Organization support within realms", Type.DEFAULT),
 
-        PASSKEYS("Passkeys", Type.PREVIEW, Feature.WEB_AUTHN),
+        PASSKEYS("Passkeys", Type.DEFAULT, Feature.WEB_AUTHN),
+        PASSKEYS_CONDITIONAL_UI_AUTHENTICATOR("Passkeys conditional UI authenticator", Type.DEPRECATED, FeatureUpdatePolicy.ROLLING_NO_UPGRADE, Feature.PASSKEYS),
 
         USER_EVENT_METRICS("Collect metrics based on user events", Type.DEFAULT),
 
@@ -132,16 +154,37 @@ public class Profile {
 
         LOGOUT_ALL_SESSIONS_V1("Logout all sessions logs out only regular sessions", Type.DEPRECATED, 1),
 
-        ROLLING_UPDATES_V1("Rolling Updates", Type.DEFAULT, 1),
-        ROLLING_UPDATES_V2("Rolling Updates for patch releases", Type.PREVIEW, 2),
+        ROLLING_UPDATES_V1("Rolling Updates", Type.DEPRECATED, 1),
+        ROLLING_UPDATES_V2("Rolling Updates for patch releases", Type.DEFAULT, 2),
 
-        LOG_MDC("Mapped Diagnostic Context (MDC) information in logs", Type.PREVIEW),
+        WORKFLOWS("Workflows", Type.DEFAULT),
+
+        LOG_MDC("Mapped Diagnostic Context (MDC) information in logs", Type.DEFAULT),
+
+        DB_TIDB("TiDB database type", Type.EXPERIMENTAL),
+
+        SSF("Shared Signals Framework", Type.EXPERIMENTAL),
+
+        HTTP_OPTIMIZED_SERIALIZERS("Optimized JSON serializers for better performance of the HTTP layer", Type.PREVIEW),
+
+        OPENAPI("OpenAPI specification served at runtime", Type.EXPERIMENTAL, CLIENT_ADMIN_API_V2),
+
+        CIMD("OAuth Client ID Metadata Document", Type.EXPERIMENTAL),
+
+        IDENTITY_ASSERTION_JWT("Identity Assertion JWT", Type.EXPERIMENTAL),
 
         /**
          * @see <a href="https://github.com/keycloak/keycloak/issues/37967">Deprecate for removal the Instagram social broker</a>.
          */
         @Deprecated
-        INSTAGRAM_BROKER("Instagram Identity Broker", Type.DEPRECATED, 1);
+        INSTAGRAM_BROKER("Instagram Identity Broker", Type.DEPRECATED, 1),
+
+        SCIM_API("Exposes a SCIM API for managing realm resources on a per-realm basis", Type.EXPERIMENTAL),
+
+        RESOURCE_INDICATORS("Resource Indicators for OAuth 2.0", Type.EXPERIMENTAL),
+
+        IDENTITY_BROKERING_API_V1("Identity Brokering API V1", Type.DEFAULT, 1, true, null, null),
+        IDENTITY_BROKERING_API_V2("Identity Brokering API V2", Type.DISABLED_BY_DEFAULT, 2);
 
         private final Type type;
         private final String label;
@@ -150,32 +193,34 @@ public class Profile {
         private final BooleanSupplier isAvailable;
         private final FeatureUpdatePolicy updatePolicy;
         private final Set<Feature> dependencies;
+        private final boolean deprecated;
         private final int version;
 
         Feature(String label, Type type, Feature... dependencies) {
-            this(label, type, 1, null, null, dependencies);
+            this(label, type, 1, type == Type.DEPRECATED, null, null, dependencies);
         }
 
         Feature(String label, Type type, FeatureUpdatePolicy updatePolicy, Feature... dependencies) {
-            this(label, type, 1, null, updatePolicy, dependencies);
+            this(label, type, 1, type == Type.DEPRECATED, null, updatePolicy, dependencies);
         }
 
         Feature(String label, Type type, int version, FeatureUpdatePolicy updatePolicy, Feature... dependencies) {
-            this(label, type, version, null, updatePolicy, dependencies);
+            this(label, type, version, type == Type.DEPRECATED, null, updatePolicy, dependencies);
         }
 
         Feature(String label, Type type, int version, Feature... dependencies) {
-            this(label, type, version, null, null, dependencies);
+            this(label, type, version, type == Type.DEPRECATED, null, null, dependencies);
         }
 
         Feature(String label, Type type, int version, BooleanSupplier isAvailable, Feature... dependencies) {
-            this(label, type, version, isAvailable, null, dependencies);
+            this(label, type, version, type == Type.DEPRECATED, isAvailable, null, dependencies);
         }
 
-        Feature(String label, Type type, int version, BooleanSupplier isAvailable, FeatureUpdatePolicy updatePolicy, Feature... dependencies) {
+        Feature(String label, Type type, int version, boolean deprecated, BooleanSupplier isAvailable, FeatureUpdatePolicy updatePolicy, Feature... dependencies) {
             this.label = label;
             this.type = type;
             this.version = version;
+            this.deprecated = type == Type.DEPRECATED || deprecated;
             this.isAvailable = isAvailable;
             this.updatePolicy = updatePolicy == null ? FeatureUpdatePolicy.ROLLING : updatePolicy;
             this.key = name().toLowerCase().replaceAll("_", "-");
@@ -230,6 +275,10 @@ public class Profile {
             return version;
         }
 
+        public boolean isDeprecated() {
+            return deprecated;
+        }
+
         public boolean isAvailable() {
             return isAvailable == null || isAvailable.getAsBoolean();
         }
@@ -240,11 +289,36 @@ public class Profile {
 
         public enum Type {
             // in priority order
+
+            /**
+             * Fully supported and enabled by default.
+             */
             DEFAULT("Default"),
+
+            /**
+             * Fully supported and disabled by default.
+             */
             DISABLED_BY_DEFAULT("Disabled by default"),
+
+            /**
+             * Fully supported and will be removed in a future major release.
+             */
             DEPRECATED("Deprecated"),
+
+            /**
+             * Not supported for production yet and not enabled by default.
+             * Usually with documentation and feature complete. Soon to be graduated to supported.
+             */
             PREVIEW("Preview"),
-            PREVIEW_DISABLED_BY_DEFAULT("Preview disabled by default"), // Preview features, which are not automatically enabled even with enabled preview profile (Needs to be enabled explicitly)
+
+            /**
+             * Preview features, which are not automatically enabled even with enabled preview profile (Needs to be enabled explicitly).
+             * This is no longer used and not explained in the current docs.
+             *
+             * @deprecated forRemoval, since 26.5
+             */
+            PREVIEW_DISABLED_BY_DEFAULT("Preview disabled by default"),
+
             EXPERIMENTAL("Experimental");
 
             private final String label;
@@ -259,7 +333,8 @@ public class Profile {
         }
     }
 
-    private static final Set<String> ESSENTIAL_FEATURES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(Feature.HOSTNAME_V2.getUnversionedKey())));
+    private static final Set<String> ESSENTIAL_FEATURES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(Feature.HOSTNAME_V2.getUnversionedKey(), Feature.ROLLING_UPDATES_V2.getUnversionedKey())));
 
     private static final Logger logger = Logger.getLogger(Profile.class);
 
@@ -333,8 +408,7 @@ public class Profile {
 
         verifyConfig(features);
 
-        CURRENT = new Profile(profile, features);
-        return CURRENT;
+        return init(profile, features);
     }
 
     private static boolean isEnabledByDefault(ProfileName profile, Feature f) {
@@ -417,8 +491,6 @@ public class Profile {
     private Profile(ProfileName profileName, Map<Feature, Boolean> features) {
         this.profileName = profileName;
         this.features = Collections.unmodifiableMap(features);
-
-        logUnsupportedFeatures();
     }
 
     public static Profile getInstance() {
@@ -469,7 +541,7 @@ public class Profile {
     }
 
     public Set<Feature> getDeprecatedFeatures() {
-        return getFeatures(Feature.Type.DEPRECATED);
+        return features.keySet().stream().filter(Feature::isDeprecated).collect(Collectors.toSet());
     }
 
     public Set<Feature> getFeatures(Feature.Type type) {
@@ -486,8 +558,9 @@ public class Profile {
     }
 
     private static void verifyConfig(Map<Feature, Boolean> features) {
-        for (Feature f : features.keySet()) {
-            if (features.get(f) && f.getDependencies() != null) {
+        for (Map.Entry<Feature, Boolean> entry : features.entrySet()) {
+            Feature f = entry.getKey();
+            if (entry.getValue() && f.getDependencies() != null) {
                 for (Feature d : f.getDependencies()) {
                     if (!features.get(d)) {
                         throw new ProfileException("Feature " + f.getKey() + " depends on disabled feature " + d.getKey());
@@ -497,19 +570,15 @@ public class Profile {
         }
     }
 
-    private void logUnsupportedFeatures() {
+    public void logUnsupportedFeatures() {
         logUnsupportedFeatures(Feature.Type.PREVIEW, getPreviewFeatures(), Logger.Level.INFO);
         logUnsupportedFeatures(Feature.Type.EXPERIMENTAL, getExperimentalFeatures(), Logger.Level.WARN);
         logUnsupportedFeatures(Feature.Type.DEPRECATED, getDeprecatedFeatures(), Logger.Level.WARN);
     }
 
     private void logUnsupportedFeatures(Feature.Type type, Set<Feature> checkedFeatures, Logger.Level level) {
-        Set<Feature.Type> checkedFeatureTypes = checkedFeatures.stream()
-                .map(Feature::getType)
-                .collect(Collectors.toSet());
-
         String enabledFeaturesOfType = features.entrySet().stream()
-                .filter(e -> e.getValue() && checkedFeatureTypes.contains(e.getKey().getType()))
+                .filter(e -> e.getValue() && checkedFeatures.contains(e.getKey()))
                 .map(e -> e.getKey().getVersionedKey()).sorted().collect(Collectors.joining(", "));
 
         if (!enabledFeaturesOfType.isEmpty()) {

@@ -1,7 +1,9 @@
 package org.keycloak.tests.admin.user;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 import org.keycloak.admin.client.resource.IdentityProviderResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.common.util.MultivaluedHashMap;
@@ -17,25 +19,28 @@ import org.keycloak.storage.StorageId;
 import org.keycloak.storage.UserStorageProvider;
 import org.keycloak.testframework.annotations.KeycloakIntegrationTest;
 import org.keycloak.testframework.events.AdminEventAssertion;
-import org.keycloak.testframework.realm.UserConfigBuilder;
+import org.keycloak.testframework.realm.UserBuilder;
 import org.keycloak.testframework.server.KeycloakServerConfig;
 import org.keycloak.testframework.server.KeycloakServerConfigBuilder;
+import org.keycloak.testframework.util.ApiUtil;
+import org.keycloak.tests.providers.federation.UserMapStorageFactory;
+import org.keycloak.tests.suites.DatabaseTest;
 import org.keycloak.tests.utils.Assert;
+import org.keycloak.tests.utils.admin.AdminApiUtil;
 import org.keycloak.tests.utils.admin.AdminEventPaths;
-import org.keycloak.tests.utils.admin.ApiUtil;
-import org.keycloak.testsuite.federation.UserMapStorageFactory;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
+import static org.keycloak.storage.UserStorageProviderModel.IMPORT_ENABLED;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.keycloak.storage.UserStorageProviderModel.IMPORT_ENABLED;
 
 @KeycloakIntegrationTest(config = UserFedarationTest.UserFederationServerConfig.class)
 public class UserFedarationTest extends AbstractUserTest {
 
     @Test
+    @DatabaseTest
     public void getFederatedIdentities() {
         // Add sample identity provider
         addSampleIdentityProvider();
@@ -102,7 +107,7 @@ public class UserFedarationTest extends AbstractUserTest {
         String userId = ApiUtil.getCreatedId(managedRealm.admin().users().create(userRepresentation));
         Assert.assertFalse(StorageId.isLocalStorage(userId));
 
-        UserResource user = ApiUtil.findUserByUsernameId(managedRealm.admin(), username);
+        UserResource user = AdminApiUtil.findUserByUsernameId(managedRealm.admin(), username);
         List<CredentialRepresentation> credentials = user.credentials();
         Assertions.assertNotNull(credentials);
         Assertions.assertEquals(1, credentials.size());
@@ -117,6 +122,7 @@ public class UserFedarationTest extends AbstractUserTest {
     }
 
     @Test
+    @DatabaseTest
     public void createFederatedIdentities() {
         String identityProviderAlias = "social-provider-id";
         String username = "federated-identities";
@@ -124,7 +130,7 @@ public class UserFedarationTest extends AbstractUserTest {
 
         addSampleIdentityProvider();
 
-        UserRepresentation build = UserConfigBuilder.create()
+        UserRepresentation build = UserBuilder.create()
                 .username(username)
                 .federatedLink(identityProviderAlias, federatedUserId, username)
                 .build();

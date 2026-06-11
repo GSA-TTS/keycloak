@@ -17,16 +17,18 @@
  */
 package org.keycloak.testsuite.client;
 
+import java.security.KeyPair;
+import java.util.Collections;
+import java.util.Random;
+import java.util.UUID;
+
 import jakarta.ws.rs.HttpMethod;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+
 import org.keycloak.OAuth2Constants;
 import org.keycloak.OAuthErrorException;
 import org.keycloak.admin.client.resource.ClientResource;
 import org.keycloak.authentication.authenticators.client.JWTClientAuthenticator;
 import org.keycloak.authentication.authenticators.client.X509ClientAuthenticator;
-import org.keycloak.common.Profile;
 import org.keycloak.common.util.KeyUtils;
 import org.keycloak.common.util.Time;
 import org.keycloak.crypto.Algorithm;
@@ -41,7 +43,6 @@ import org.keycloak.representations.AccessToken;
 import org.keycloak.representations.RefreshToken;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.testsuite.AssertEvents;
-import org.keycloak.testsuite.arquillian.annotation.EnableFeature;
 import org.keycloak.testsuite.client.resources.TestApplicationResourceUrls;
 import org.keycloak.testsuite.rest.resource.TestingOIDCEndpointsApplicationResource;
 import org.keycloak.testsuite.util.MutualTLSUtils;
@@ -50,24 +51,23 @@ import org.keycloak.testsuite.util.oauth.ParResponse;
 import org.keycloak.testsuite.util.oauth.PkceGenerator;
 import org.keycloak.util.JWKSUtils;
 
-import java.security.KeyPair;
-import java.util.Collections;
-import java.util.Random;
-import java.util.UUID;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 import static org.keycloak.testsuite.util.ClientPoliciesUtil.createEcJwk;
 import static org.keycloak.testsuite.util.ClientPoliciesUtil.createRsaJwk;
 import static org.keycloak.testsuite.util.ClientPoliciesUtil.generateEcdsaKey;
 import static org.keycloak.testsuite.util.ClientPoliciesUtil.generateSignedDPoPProof;
 
-@EnableFeature(value = Profile.Feature.DPOP, skipRestart = true)
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 public class FAPI2DPoPTest extends AbstractFAPI2Test {
 
-    private static final String REALM_NAME = "test";
     private static final String DPOP_JWT_HEADER_TYPE = "dpop+jwt";
     private static final String nonce = "123456"; // need to be 123456.
 
@@ -102,23 +102,23 @@ public class FAPI2DPoPTest extends AbstractFAPI2Test {
 
     @Test
     public void testFAPI2DPoPSecurityProfileClientRegistration() throws Exception {
-        testFAPI2ClientRegistration(FAPI2_DPOP_SECURITY_PROFILE_NAME);
+        testFAPI2ClientRegistration(getSecurityProfileName());
     }
 
     @Test
     public void testFAPI2DPoPSecurityProfileOIDCClientRegistration() throws Exception {
-        testFAPI2OIDCClientRegistration(FAPI2_DPOP_SECURITY_PROFILE_NAME);
+        testFAPI2OIDCClientRegistration(getSecurityProfileName());
     }
 
     @Test
     public void testFAPI2DPoPSecurityProfileSignatureAlgorithms() throws Exception {
-        testFAPI2SignatureAlgorithms(FAPI2_DPOP_SECURITY_PROFILE_NAME);
+        testFAPI2SignatureAlgorithms(getSecurityProfileName());
     }
 
     @Test
     public void testFAPI2DPoPSecurityProfileLoginWithPrivateKeyJWT() throws Exception {
         // setup client policy
-        setupPolicyFAPI2ForAllClient(FAPI2_DPOP_SECURITY_PROFILE_NAME);
+        setupPolicyFAPI2ForAllClient(getSecurityProfileName());
 
         // Register client with private-key-jwt
         String clientUUID = createClientByAdmin(clientId, (ClientRepresentation clientRep) -> {
@@ -196,7 +196,7 @@ public class FAPI2DPoPTest extends AbstractFAPI2Test {
     @Test
     public void testFAPI2DPoPSecurityProfileLoginWithMTLS() throws Exception {
         // setup client policy
-        setupPolicyFAPI2ForAllClient(FAPI2_DPOP_SECURITY_PROFILE_NAME);
+        setupPolicyFAPI2ForAllClient(getSecurityProfileName());
 
         // create client with MTLS authentication
         // Register client with X509
@@ -205,6 +205,7 @@ public class FAPI2DPoPTest extends AbstractFAPI2Test {
             OIDCAdvancedConfigWrapper clientConfig = OIDCAdvancedConfigWrapper.fromClientRepresentation(clientRep);
             clientConfig.setRequestUris(Collections.singletonList(TestApplicationResourceUrls.clientRequestUri()));
             clientConfig.setTlsClientAuthSubjectDn(MutualTLSUtils.DEFAULT_KEYSTORE_SUBJECT_DN);
+            clientConfig.setTlsClientAuthCASubjectDn(MutualTLSUtils.CA_CERTIFICATE_SUBJECT_DN);
             clientConfig.setAllowRegexPatternComparison(false);
         });
         ClientResource clientResource = adminClient.realm(REALM_NAME).clients().get(clientUUID);
@@ -223,7 +224,7 @@ public class FAPI2DPoPTest extends AbstractFAPI2Test {
 
         // without PAR request - should fail
         oauth.openLoginForm();
-        assertBrowserWithError("request_uri not included.");
+        assertBrowserWithError("PAR request_uri not included.");
 
         pkceGenerator = PkceGenerator.s256();
 
@@ -252,11 +253,11 @@ public class FAPI2DPoPTest extends AbstractFAPI2Test {
                 .send();
         assertEquals(201, pResp.getStatusCode());
         oauth.loginForm().requestUri(pResp.getRequestUri()).param("custom", "value").open();
-        assertBrowserWithError("PAR request did not include necessary parameters");
+        assertBrowserWithError("PAR request did not include query parameter");
 
         // duplicated usage of a PAR request - should fail
         oauth.loginForm().requestUri(pResp.getRequestUri()).open();
-        assertBrowserWithError("PAR not found. not issued or used multiple times.");
+        assertBrowserWithError("PAR not found, not issued or used multiple times.");
 
         // send a pushed authorization request
         // use RSA key for DPoP proof but not send dpop_jkt
@@ -300,23 +301,23 @@ public class FAPI2DPoPTest extends AbstractFAPI2Test {
 
     @Test
     public void testFAPI2DPoPMessageSigningClientRegistration() throws Exception {
-        testFAPI2ClientRegistration(FAPI2_DPOP_MESSAGE_SIGNING_PROFILE_NAME);
+        testFAPI2ClientRegistration(getMessageSigningName());
     }
 
     @Test
     public void testFAPI2DPoPMessageSigningOIDCClientRegistration() throws Exception {
-        testFAPI2OIDCClientRegistration(FAPI2_DPOP_MESSAGE_SIGNING_PROFILE_NAME);
+        testFAPI2OIDCClientRegistration(getMessageSigningName());
     }
 
     @Test
     public void testFAPI2DPoPMessageSigningSignatureAlgorithms() throws Exception {
-        testFAPI2SignatureAlgorithms(FAPI2_DPOP_MESSAGE_SIGNING_PROFILE_NAME);
+        testFAPI2SignatureAlgorithms(getMessageSigningName());
     }
 
     @Test
     public void testFAPI2DPoPMessageSigningLoginWithMTLS() throws Exception {
         // setup client policy
-        setupPolicyFAPI2ForAllClient(FAPI2_DPOP_MESSAGE_SIGNING_PROFILE_NAME);
+        setupPolicyFAPI2ForAllClient(getMessageSigningName());
 
         // create client with MTLS authentication
         // Register client with X509
@@ -325,6 +326,7 @@ public class FAPI2DPoPTest extends AbstractFAPI2Test {
             OIDCAdvancedConfigWrapper clientConfig = OIDCAdvancedConfigWrapper.fromClientRepresentation(clientRep);
             clientConfig.setRequestUris(Collections.singletonList(TestApplicationResourceUrls.clientRequestUri()));
             clientConfig.setTlsClientAuthSubjectDn(MutualTLSUtils.DEFAULT_KEYSTORE_SUBJECT_DN);
+            clientConfig.setTlsClientAuthCASubjectDn(MutualTLSUtils.CA_CERTIFICATE_SUBJECT_DN);
             clientConfig.setAllowRegexPatternComparison(false);
             clientConfig.setRequestObjectRequired("request or request_uri");
             clientConfig.setAuthorizationSignedResponseAlg(Algorithm.PS256);
@@ -401,7 +403,7 @@ public class FAPI2DPoPTest extends AbstractFAPI2Test {
     @Test
     public void testFAPI2DPoPMessageSigningLoginWithPrivateKeyJWT() throws Exception {
         // setup client policy
-        setupPolicyFAPI2ForAllClient(FAPI2_DPOP_MESSAGE_SIGNING_PROFILE_NAME);
+        setupPolicyFAPI2ForAllClient(getMessageSigningName());
 
         // create client with MTLS authentication
         // Register client with X509
@@ -444,7 +446,7 @@ public class FAPI2DPoPTest extends AbstractFAPI2Test {
                 .signedJwt(signedJwt)
                 .send();
         assertEquals(400, pResp.getStatusCode());
-        assertEquals(OAuthErrorException.INVALID_REQUEST_OBJECT, pResp.getError());
+        assertEquals(OAuthErrorException.INVALID_REQUEST, pResp.getError());
 
         // Set request object and correct responseType
         requestObject = createValidRequestObjectForSecureRequestObjectExecutor(clientId);
@@ -499,5 +501,61 @@ public class FAPI2DPoPTest extends AbstractFAPI2Test {
 
         // Logout and remove consent of the user for next logins
         logoutUserAndRevokeConsent(clientId, TEST_USERNAME);
+    }
+
+
+    @Test
+    public void testSecureClientAuthenticationAssertion() throws Exception {
+        // setup client policy
+        setupPolicyFAPI2ForAllClient(getSecurityProfileName());
+
+        // Register client with private-key-jwt
+        createClientByAdmin(clientId, (ClientRepresentation clientRep) -> {
+            clientRep.setClientAuthenticatorType(JWTClientAuthenticator.PROVIDER_ID);
+            OIDCAdvancedConfigWrapper.fromClientRepresentation(clientRep).setRequestUris(Collections.singletonList(TestApplicationResourceUrls.clientRequestUri()));
+        });
+
+        oauth.client(clientId);
+
+        PkceGenerator pkceGenerator = PkceGenerator.s256();
+
+        TestingOIDCEndpointsApplicationResource.AuthorizationEndpointRequestObject requestObject = createValidRequestObjectForSecureRequestObjectExecutor(clientId);
+        requestObject.setNonce("123456");
+        requestObject.setCodeChallenge(pkceGenerator.getCodeChallenge());
+        requestObject.setCodeChallengeMethod(pkceGenerator.getCodeChallengeMethod());
+        registerRequestObject(requestObject, clientId, Algorithm.PS256, false);
+
+        // Send a push authorization request with invalid 'aud' . Should fail
+        String signedJwt = createSignedRequestToken(clientId, Algorithm.PS256, getRealmInfoUrl() + "/protocol/openid-connect/ext/par/request");
+        ParResponse pResp = oauth.pushedAuthorizationRequest().request(request).signedJwt(signedJwt).send();
+        assertEquals(400, pResp.getStatusCode());
+
+        // Send a push authorization request with valid 'aud' . Should succeed
+        signedJwt = createSignedRequestToken(clientId, Algorithm.PS256, getRealmInfoUrl());
+        pResp = oauth.pushedAuthorizationRequest().request(request).signedJwt(signedJwt).send();
+        assertEquals(201, pResp.getStatusCode());
+        requestUri = pResp.getRequestUri();
+        request = null;
+
+        // Send an authorization request . Should succeed
+        String code = loginUserAndGetCode(clientId, null, false);
+        assertNotNull(code);
+
+        // Send a token request with invalid 'aud' . Should fail
+        signedJwt = createSignedRequestToken(clientId, Algorithm.PS256, getRealmInfoUrl() + "/protocol/openid-connect/token");
+        this.pkceGenerator = pkceGenerator;
+        AccessTokenResponse tokenResponse = doAccessTokenRequestWithClientSignedJWT(code, signedJwt, MutualTLSUtils::newCloseableHttpClientWithDefaultKeyStoreAndTrustStore);
+        assertEquals(400, tokenResponse.getStatusCode());
+
+        // Logout and remove consent of the user for next logins
+        logoutUserAndRevokeConsent(clientId, TEST_USERNAME);
+    }
+
+    protected String getSecurityProfileName() {
+        return FAPI2_DPOP_SECURITY_PROFILE_NAME;
+    }
+
+    protected String getMessageSigningName() {
+        return FAPI2_DPOP_MESSAGE_SIGNING_PROFILE_NAME;
     }
 }

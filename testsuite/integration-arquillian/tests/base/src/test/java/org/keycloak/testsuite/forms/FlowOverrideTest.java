@@ -17,11 +17,19 @@
 
 package org.keycloak.testsuite.forms;
 
-import org.jboss.arquillian.graphene.page.Page;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.Entity;
+import jakarta.ws.rs.client.WebTarget;
+import jakarta.ws.rs.core.Form;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.Response;
+
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.resource.ClientResource;
 import org.keycloak.admin.client.resource.ClientsResource;
@@ -38,8 +46,9 @@ import org.keycloak.models.jpa.entities.AuthenticationFlowEntity;
 import org.keycloak.models.utils.TimeBasedOTP;
 import org.keycloak.representations.idm.AuthenticationFlowRepresentation;
 import org.keycloak.representations.idm.ClientRepresentation;
+import org.keycloak.testframework.events.EventAssertion;
 import org.keycloak.testsuite.AssertEvents;
-import org.keycloak.testsuite.admin.ApiUtil;
+import org.keycloak.testsuite.admin.AdminApiUtil;
 import org.keycloak.testsuite.arquillian.annotation.EnableFeature;
 import org.keycloak.testsuite.arquillian.annotation.UncaughtServerErrorExpected;
 import org.keycloak.testsuite.authentication.PushButtonAuthenticatorFactory;
@@ -50,21 +59,15 @@ import org.keycloak.testsuite.util.AdminClientUtil;
 import org.keycloak.testsuite.util.FlowUtil;
 import org.keycloak.testsuite.util.UIUtils;
 import org.keycloak.util.BasicAuthHelper;
+
+import org.jboss.arquillian.graphene.page.Page;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.openqa.selenium.By;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.Entity;
-import jakarta.ws.rs.client.WebTarget;
-import jakarta.ws.rs.core.Form;
-import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.ws.rs.core.Response;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
-
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Test that clients can override auth flows
@@ -199,10 +202,10 @@ public class FlowOverrideTest extends AbstractFlowTest {
 
     @Test
     public void testWithClientBrowserOverride() throws Exception {
-        oauth.clientId(TEST_APP_FLOW);
+        oauth.client(TEST_APP_FLOW);
         oauth.openLoginForm();
 
-        Assert.assertEquals("PushTheButton", driver.getTitle());
+        Assertions.assertEquals("PushTheButton", driver.getTitle());
 
         // Push the button. I am redirected to username+password form
         UIUtils.clickLink(driver.findElement(By.name("submit1")));
@@ -214,7 +217,7 @@ public class FlowOverrideTest extends AbstractFlowTest {
         oauth.fillLoginForm("test-user@localhost", getPassword("test-user@localhost"));
         appPage.assertCurrent();
 
-        events.expectLogin().client("test-app-flow").detail(Details.USERNAME, "test-user@localhost").assertEvent();
+        EventAssertion.expectLoginSuccess(events.poll()).clientId("test-app-flow").details(Details.USERNAME, "test-user@localhost");
     }
 
     @Test
@@ -222,11 +225,11 @@ public class FlowOverrideTest extends AbstractFlowTest {
         testWithRemovedFlowOverrideByClient(AuthenticationFlowBindings.BROWSER_BINDING, this::testNoOverrideBrowser);
     }
 
-    // TODO remove this once DYNAMIC_SCOPES feature is enabled by default
+    // TODO remove this once PARAMETERIZED_SCOPES feature is enabled by default
     @Test
-    @EnableFeature(value = Profile.Feature.DYNAMIC_SCOPES, skipRestart = true)
-    public void testWithClientBrowserOverrideWithDynamicScope() throws Exception {
-        // Just use existing test with DYNAMIC_SCOPES feature enabled as it was failing with DYNAMIC_SCOPES
+    @EnableFeature(value = Profile.Feature.PARAMETERIZED_SCOPES, skipRestart = true)
+    public void testWithClientBrowserOverrideWithParameterizedScope() throws Exception {
+        // Just use existing test with PARAMETERIZED_SCOPES feature enabled as it was failing with PARAMETERIZED_SCOPES
         testWithClientBrowserOverride();
     }
 
@@ -237,7 +240,7 @@ public class FlowOverrideTest extends AbstractFlowTest {
     }
 
     private void testNoOverrideBrowser(String clientId) {
-        oauth.clientId(clientId);
+        oauth.client(clientId);
         oauth.openLoginForm();
 
         loginPage.assertCurrent();
@@ -246,7 +249,7 @@ public class FlowOverrideTest extends AbstractFlowTest {
         oauth.fillLoginForm("test-user@localhost", getPassword("test-user@localhost"));
         appPage.assertCurrent();
 
-        events.expectLogin().client(clientId).detail(Details.USERNAME, "test-user@localhost").assertEvent();
+        EventAssertion.expectLoginSuccess(events.poll()).clientId(clientId).details(Details.USERNAME, "test-user@localhost");
     }
 
     @Test
@@ -272,7 +275,7 @@ public class FlowOverrideTest extends AbstractFlowTest {
             Response response = grantTarget.request()
                     .header(HttpHeaders.AUTHORIZATION, header)
                     .post(Entity.form(form));
-            assertEquals(401, response.getStatus());
+            assertEquals(400, response.getStatus());
             response.close();
         }
 
@@ -285,7 +288,7 @@ public class FlowOverrideTest extends AbstractFlowTest {
             Response response = grantTarget.request()
                     .header(HttpHeaders.AUTHORIZATION, header)
                     .post(Entity.form(form));
-            assertEquals(401, response.getStatus());
+            assertEquals(400, response.getStatus());
             response.close();
         }
 
@@ -336,7 +339,7 @@ public class FlowOverrideTest extends AbstractFlowTest {
         List<ClientRepresentation> query = clients.findByClientId(TEST_APP_DIRECT_OVERRIDE);
         ClientRepresentation clientRep = query.get(0);
         String directGrantFlowId = clientRep.getAuthenticationFlowBindingOverrides().get(AuthenticationFlowBindings.DIRECT_GRANT_BINDING);
-        Assert.assertNotNull(directGrantFlowId);
+        Assertions.assertNotNull(directGrantFlowId);
         clientRep.getAuthenticationFlowBindingOverrides().put(AuthenticationFlowBindings.DIRECT_GRANT_BINDING, "");
         clients.get(clientRep.getId()).update(clientRep);
         testDirectGrantNoOverride(TEST_APP_DIRECT_OVERRIDE);
@@ -347,7 +350,7 @@ public class FlowOverrideTest extends AbstractFlowTest {
         query = clients.findByClientId(TEST_APP_FLOW);
         clientRep = query.get(0);
         String browserFlowId = clientRep.getAuthenticationFlowBindingOverrides().get(AuthenticationFlowBindings.BROWSER_BINDING);
-        Assert.assertNotNull(browserFlowId);
+        Assertions.assertNotNull(browserFlowId);
         clientRep.getAuthenticationFlowBindingOverrides().put(AuthenticationFlowBindings.BROWSER_BINDING, "");
         clients.get(clientRep.getId()).update(clientRep);
         testNoOverrideBrowser(TEST_APP_FLOW);
@@ -367,19 +370,19 @@ public class FlowOverrideTest extends AbstractFlowTest {
         clientRep.getAuthenticationFlowBindingOverrides().put(AuthenticationFlowBindings.BROWSER_BINDING, "bad-id");
         try {
             clients.get(clientRep.getId()).update(clientRep);
-            Assert.fail();
+            Assertions.fail();
         } catch (Exception e) {
 
         }
         query = clients.findByClientId(TEST_APP_FLOW);
         clientRep = query.get(0);
-        Assert.assertEquals(browserFlowId, clientRep.getAuthenticationFlowBindingOverrides().get(AuthenticationFlowBindings.BROWSER_BINDING));
+        Assertions.assertEquals(browserFlowId, clientRep.getAuthenticationFlowBindingOverrides().get(AuthenticationFlowBindings.BROWSER_BINDING));
 
     }
 
     private void testWithRemovedFlowOverrideByClient(String binding, Consumer<String> testNoOverride) {
-        ClientResource clientResource = ApiUtil.findClientByClientId(testRealm(), "test-app");
-        Assert.assertNotNull(clientResource);
+        ClientResource clientResource = AdminApiUtil.findClientByClientId(managedRealm.admin(), "test-app");
+        Assertions.assertNotNull(clientResource);
         ClientRepresentation clientRep = clientResource.toRepresentation();
 
         String newFlowAlias = "Copy of Browser Flow";

@@ -17,20 +17,6 @@
 
 package org.keycloak.keys;
 
-import org.keycloak.common.util.KeyUtils;
-import org.keycloak.common.util.KeystoreUtil;
-import org.keycloak.component.ComponentModel;
-import org.keycloak.crypto.Algorithm;
-import org.keycloak.crypto.JavaAlgorithm;
-import org.keycloak.crypto.KeyStatus;
-import org.keycloak.crypto.KeyType;
-import org.keycloak.crypto.KeyUse;
-import org.keycloak.crypto.KeyWrapper;
-import org.keycloak.jose.jwe.JWEConstants;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.utils.KeycloakModelUtils;
-import org.keycloak.vault.VaultTranscriber;
-
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -55,6 +41,20 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.crypto.SecretKey;
+
+import org.keycloak.common.util.KeyUtils;
+import org.keycloak.common.util.KeystoreUtil;
+import org.keycloak.component.ComponentModel;
+import org.keycloak.component.ComponentValidationException;
+import org.keycloak.crypto.Algorithm;
+import org.keycloak.crypto.JavaAlgorithm;
+import org.keycloak.crypto.KeyStatus;
+import org.keycloak.crypto.KeyType;
+import org.keycloak.crypto.KeyUse;
+import org.keycloak.crypto.KeyWrapper;
+import org.keycloak.jose.jwe.JWEConstants;
+import org.keycloak.models.RealmModel;
+import org.keycloak.vault.VaultTranscriber;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
@@ -255,7 +255,13 @@ public class JavaKeystoreKeyProvider implements KeyProvider {
         keyWrapper.setProviderId(model.getId());
         keyWrapper.setProviderPriority(model.get("priority", 0l));
 
-        keyWrapper.setKid(model.get(Attributes.KID_KEY, KeycloakModelUtils.generateId()));
+        String kid = model.get(Attributes.KID_KEY);
+
+        if (kid == null) {
+            throw new ComponentValidationException("key id is required");
+        }
+
+        keyWrapper.setKid(kid);
         keyWrapper.setUse(use);
         keyWrapper.setType(KeyType.OCT);
         keyWrapper.setAlgorithm(algorithm);

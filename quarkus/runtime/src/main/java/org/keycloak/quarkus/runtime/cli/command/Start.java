@@ -17,16 +17,14 @@
 
 package org.keycloak.quarkus.runtime.cli.command;
 
-import static org.keycloak.quarkus.runtime.cli.command.AbstractStartCommand.OPTIMIZED_BUILD_OPTION_LONG;
-
 import org.keycloak.quarkus.runtime.Environment;
 import org.keycloak.quarkus.runtime.Messages;
-import org.keycloak.common.profile.ProfileException;
-import org.keycloak.quarkus.runtime.cli.Picocli;
 import org.keycloak.quarkus.runtime.cli.PropertyException;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
+
+import static org.keycloak.quarkus.runtime.cli.command.AbstractAutoBuildCommand.OPTIMIZED_BUILD_OPTION_LONG;
 
 @Command(name = Start.NAME,
         header = "Start the server.",
@@ -36,7 +34,7 @@ import picocli.CommandLine.Command;
         footer = "%nBy default, this command tries to update the server configuration by running a '" + Build.NAME + "' before starting the server. You can disable this behavior by using the '" + OPTIMIZED_BUILD_OPTION_LONG + "' option:%n%n"
                 + "      $ ${PARENT-COMMAND-FULL-NAME:-$PARENTCOMMAND} ${COMMAND-NAME} '" + OPTIMIZED_BUILD_OPTION_LONG + "'%n%n"
                 + "By doing that, the server should start faster based on any previous configuration you have set when manually running the '" + Build.NAME + "' command.")
-public final class Start extends AbstractStartCommand {
+public final class Start extends AbstractAutoBuildCommand {
 
     public static final String NAME = "start";
 
@@ -54,25 +52,18 @@ public final class Start extends AbstractStartCommand {
     }
 
     @Override
-    public boolean includeRuntime() {
-        return true;
-    }
-
-    @Override
     public String getName() {
         return NAME;
     }
 
-    public static void fastStart(Picocli picocli, boolean dryRun) {
-        try {
-            Start start = new Start();
-            start.optimizedMixin.optimized = true;
-            start.dryRunMixin.dryRun = dryRun;
-            start.setPicocli(picocli);
-            picocli.initConfig(start);
-            picocli.exit(start.call());
-        } catch (PropertyException | ProfileException e) {
-            picocli.usageException(e.getMessage(), e.getCause());
-        }
+    @Override
+    public boolean isServing() {
+        return true;
     }
+
+    @Override
+    protected OptimizedMixin getOptimizedMixin() {
+        return optimizedMixin;
+    }
+
 }

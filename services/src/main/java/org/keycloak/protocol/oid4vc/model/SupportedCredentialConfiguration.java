@@ -16,17 +16,21 @@
  */
 package org.keycloak.protocol.oid4vc.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import org.apache.commons.collections4.ListUtils;
-import org.keycloak.models.oid4vci.CredentialScopeModel;
-import org.keycloak.models.KeycloakSession;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.keycloak.VCFormat;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.oid4vci.CredentialScopeModel;
+import org.keycloak.utils.StringUtil;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import org.jboss.logging.Logger;
 
 /**
  * A supported credential, as used in the Credentials Issuer Metadata in OID4VCI
@@ -35,7 +39,7 @@ import java.util.Optional;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SupportedCredentialConfiguration {
 
-    public static final String DOT_SEPARATOR = ".";
+    private static final Logger LOGGER = Logger.getLogger(SupportedCredentialConfiguration.class);
 
     @JsonIgnore
     private static final String FORMAT_KEY = "format";
@@ -46,18 +50,17 @@ public class SupportedCredentialConfiguration {
     @JsonIgnore
     private static final String CREDENTIAL_SIGNING_ALG_VALUES_SUPPORTED_KEY = "credential_signing_alg_values_supported";
     @JsonIgnore
-    private static final String DISPLAY_KEY = "display";
-    @JsonIgnore
     private static final String PROOF_TYPES_SUPPORTED_KEY = "proof_types_supported";
-    @JsonIgnore
-    private static final String CLAIMS_KEY = "claims";
     @JsonIgnore
     public static final String VERIFIABLE_CREDENTIAL_TYPE_KEY = "vct";
     @JsonIgnore
     private static final String CREDENTIAL_DEFINITION_KEY = "credential_definition";
     @JsonIgnore
     public static final String CREDENTIAL_BUILD_CONFIG_KEY = "credential_build_config";
+    @JsonIgnore
+    private static final String CREDENTIAL_METADATA_KEY = "credential_metadata";
 
+    @JsonIgnore
     private String id;
 
     @JsonProperty(FORMAT_KEY)
@@ -72,9 +75,6 @@ public class SupportedCredentialConfiguration {
     @JsonProperty(CREDENTIAL_SIGNING_ALG_VALUES_SUPPORTED_KEY)
     private List<String> credentialSigningAlgValuesSupported;
 
-    @JsonProperty(DISPLAY_KEY)
-    private List<DisplayObject> display;
-
     @JsonProperty(VERIFIABLE_CREDENTIAL_TYPE_KEY)
     private String vct;
 
@@ -84,8 +84,8 @@ public class SupportedCredentialConfiguration {
     @JsonProperty(PROOF_TYPES_SUPPORTED_KEY)
     private ProofTypesSupported proofTypesSupported;
 
-    @JsonProperty(CLAIMS_KEY)
-    private Claims claims;
+    @JsonProperty(CREDENTIAL_METADATA_KEY)
+    private CredentialMetadata credentialMetadata;
 
     // This is not a normative field for supported credential metadata,
     // but will allow configuring the issuance of the credential internally.
@@ -109,39 +109,83 @@ public class SupportedCredentialConfiguration {
 
         credentialConfiguration.setScope(credentialScope.getName());
 
-        String format = Optional.ofNullable(credentialScope.getFormat()).orElse(Format.SD_JWT_VC);
+        String format = Optional.ofNullable(credentialScope.getFormat()).orElse(VCFormat.SD_JWT_VC);
         credentialConfiguration.setFormat(format);
 
-        String vct = Optional.ofNullable(credentialScope.getVct()).orElse(credentialScope.getName());
-        credentialConfiguration.setVct(vct);
+        KeyAttestationsRequired keyAttestationsRequired = KeyAttestationsRequired.parse(credentialScope);
+        boolean bindingRequired = credentialScope.isBindingRequired();
+        List<String> requiredProofTypes = credentialScope.getRequiredProofTypes();
+        List<String> configuredBindingMethods = credentialScope.getCryptographicBindingMethods();
 
-        CredentialDefinition credentialDefinition = CredentialDefinition.parse(credentialScope);
-        credentialConfiguration.setCredentialDefinition(credentialDefinition);
+        // Normalize and validate binding methods and proof types against what the server actually supports.
+        // This prevents unknown values configured via the admin UI or API from leaking into issuer metadata.
+        List<String> allowedBindingMethods = List.of(CredentialScopeModel.CRYPTOGRAPHIC_BINDING_METHODS_DEFAULT);
+        List<String> effectiveBindingMethods = Optional.ofNullable(configuredBindingMethods)
+                .orElse(Collections.emptyList())
+                .stream()
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .filter(allowedBindingMethods::contains)
+                .collect(Collectors.toList());
 
-         ProofTypesSupported proofTypesSupported = ProofTypesSupported.parse(keycloakSession,
-                                                                             globalSupportedSigningAlgorithms);
-         credentialConfiguration.setProofTypesSupported(proofTypesSupported);
+        if (configuredBindingMethods != null && !configuredBindingMethods.isEmpty()
+                && effectiveBindingMethods.isEmpty()) {
+            LOGGER.warnf("All configured cryptographic binding methods %s are unsupported. " +
+                            "This credential configuration will not advertise cryptographic binding in metadata.",
+                    configuredBindingMethods);
+        }
 
-        List<String> signingAlgsSupported = credentialScope.getSigningAlgsSupported();
-        signingAlgsSupported = signingAlgsSupported.isEmpty() ? globalSupportedSigningAlgorithms :
-                // if the config has listed different algorithms than supported by keycloak we must use the
-                // intersection of the configuration with the actual supported algorithms.
-                ListUtils.intersection(signingAlgsSupported, globalSupportedSigningAlgorithms);
+        List<String> allowedProofTypes = List.of(ProofType.JWT, ProofType.ATTESTATION);
+        List<String> effectiveProofTypes = Optional.ofNullable(requiredProofTypes)
+                .orElse(Collections.emptyList())
+                .stream()
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .filter(allowedProofTypes::contains)
+                .collect(Collectors.toList());
+
+        if (requiredProofTypes != null && !requiredProofTypes.isEmpty()
+                && effectiveProofTypes.isEmpty()) {
+            LOGGER.warnf("All configured proof types %s are unsupported. " +
+                            "This credential configuration will not advertise proof_types_supported in metadata.",
+                    requiredProofTypes);
+        }
+
+        // According to OID4VCI Section 12.2.4:
+        // - If cryptographic_binding_methods_supported is present, cryptographic holder binding is REQUIRED.
+        // - If it is absent, binding is NOT required.
+        // - proof_types_supported MUST be present if cryptographic_binding_methods_supported is present.
+        //
+        // We therefore only emit these two metadata fields when:
+        //   - binding has been explicitly marked as required
+        //   - at least one proof type is configured for this credential configuration
+        //   - and at least one cryptographic binding method has been configured
+        if (bindingRequired
+                && !effectiveProofTypes.isEmpty()
+                && !effectiveBindingMethods.isEmpty()) {
+
+            ProofTypesSupported allProofTypes = ProofTypesSupported.parse(keycloakSession, keyAttestationsRequired,
+                    globalSupportedSigningAlgorithms);
+            ProofTypesSupported proofTypesSupported = allProofTypes.filterByTypes(effectiveProofTypes);
+            credentialConfiguration.setProofTypesSupported(proofTypesSupported);
+
+            credentialConfiguration.setCryptographicBindingMethodsSupported(effectiveBindingMethods);
+        }
+
+        // Return single configured value for the signature algorithm if any
+        String signingAlgSupported = credentialScope.getSigningAlg();
+        List<String> signingAlgsSupported = StringUtil.isBlank(signingAlgSupported) ? globalSupportedSigningAlgorithms :
+                Collections.singletonList(signingAlgSupported);
         credentialConfiguration.setCredentialSigningAlgValuesSupported(signingAlgsSupported);
 
-        // TODO resolve value dynamically from provider implementations?
-        String bindingMethodsSupported = CredentialScopeModel.CRYPTOGRAPHIC_BINDING_METHODS_DEFAULT;
-        credentialConfiguration.setCryptographicBindingMethodsSupported(List.of(bindingMethodsSupported));
-
-        credentialConfiguration.setDisplay(DisplayObject.parse(credentialScope));
+        // Parse credential metadata (includes display and claims)
+        CredentialMetadata credentialMetadata = CredentialMetadata.parse(keycloakSession, credentialScope);
+        credentialConfiguration.setCredentialMetadata(credentialMetadata);
 
         CredentialBuildConfig credentialBuildConfig = CredentialBuildConfig.parse(keycloakSession,
                                                                                   credentialConfiguration,
                                                                                   credentialScope);
         credentialConfiguration.setCredentialBuildConfig(credentialBuildConfig);
-
-        Claims claims = Claims.parse(keycloakSession, credentialScope);
-        credentialConfiguration.setClaims(claims);
 
         return credentialConfiguration;
     }
@@ -159,13 +203,13 @@ public class SupportedCredentialConfiguration {
      * @return
      */
     public VerifiableCredentialType deriveType() {
-        if (Objects.equals(format, Format.SD_JWT_VC)) {
+        if (Objects.equals(format, VCFormat.SD_JWT_VC)) {
             return VerifiableCredentialType.from(vct);
         }
         return null;
     }
 
-    public CredentialConfigId deriveConfiId() {
+    public CredentialConfigId deriveConfigId() {
         return CredentialConfigId.from(id);
     }
 
@@ -196,15 +240,6 @@ public class SupportedCredentialConfiguration {
         return this;
     }
 
-    public List<DisplayObject> getDisplay() {
-        return display;
-    }
-
-    public SupportedCredentialConfiguration setDisplay(List<DisplayObject> display) {
-        this.display = display;
-        return this;
-    }
-
     public String getId() {
         return id;
     }
@@ -220,15 +255,6 @@ public class SupportedCredentialConfiguration {
 
     public SupportedCredentialConfiguration setCredentialSigningAlgValuesSupported(List<String> credentialSigningAlgValuesSupported) {
         this.credentialSigningAlgValuesSupported = Collections.unmodifiableList(credentialSigningAlgValuesSupported);
-        return this;
-    }
-
-    public Claims getClaims() {
-        return claims;
-    }
-
-    public SupportedCredentialConfiguration setClaims(Claims claims) {
-        this.claims = claims;
         return this;
     }
 
@@ -259,6 +285,15 @@ public class SupportedCredentialConfiguration {
         return this;
     }
 
+    public CredentialMetadata getCredentialMetadata() {
+        return credentialMetadata;
+    }
+
+    public SupportedCredentialConfiguration setCredentialMetadata(CredentialMetadata credentialMetadata) {
+        this.credentialMetadata = credentialMetadata;
+        return this;
+    }
+
     public CredentialBuildConfig getCredentialBuildConfig() {
         return credentialBuildConfig;
     }
@@ -273,11 +308,11 @@ public class SupportedCredentialConfiguration {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SupportedCredentialConfiguration that = (SupportedCredentialConfiguration) o;
-        return Objects.equals(id, that.id) && Objects.equals(format, that.format) && Objects.equals(scope, that.scope) && Objects.equals(cryptographicBindingMethodsSupported, that.cryptographicBindingMethodsSupported) && Objects.equals(credentialSigningAlgValuesSupported, that.credentialSigningAlgValuesSupported) && Objects.equals(display, that.display) && Objects.equals(vct, that.vct) && Objects.equals(credentialDefinition, that.credentialDefinition) && Objects.equals(proofTypesSupported, that.proofTypesSupported) && Objects.equals(claims, that.claims) && Objects.equals(credentialBuildConfig, that.credentialBuildConfig);
+        return Objects.equals(id, that.id) && Objects.equals(format, that.format) && Objects.equals(scope, that.scope) && Objects.equals(cryptographicBindingMethodsSupported, that.cryptographicBindingMethodsSupported) && Objects.equals(credentialSigningAlgValuesSupported, that.credentialSigningAlgValuesSupported) && Objects.equals(vct, that.vct) && Objects.equals(credentialDefinition, that.credentialDefinition) && Objects.equals(proofTypesSupported, that.proofTypesSupported) && Objects.equals(credentialMetadata, that.credentialMetadata) && Objects.equals(credentialBuildConfig, that.credentialBuildConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, format, scope, cryptographicBindingMethodsSupported, credentialSigningAlgValuesSupported, display, vct, credentialDefinition, proofTypesSupported, claims, credentialBuildConfig);
+        return Objects.hash(id, format, scope, cryptographicBindingMethodsSupported, credentialSigningAlgValuesSupported, vct, credentialDefinition, proofTypesSupported, credentialMetadata, credentialBuildConfig);
     }
 }

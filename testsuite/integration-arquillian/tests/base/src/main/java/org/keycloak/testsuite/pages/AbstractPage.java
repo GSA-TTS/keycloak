@@ -17,9 +17,10 @@
 
 package org.keycloak.testsuite.pages;
 
-import org.jboss.arquillian.test.api.ArquillianResource;
-import org.junit.Assert;
 import org.keycloak.testsuite.util.oauth.OAuthClient;
+
+import org.jboss.arquillian.test.api.ArquillianResource;
+import org.junit.jupiter.api.Assertions;
 import org.openqa.selenium.WebDriver;
 
 /**
@@ -35,8 +36,8 @@ public abstract class AbstractPage {
 
     public void assertCurrent() {
         String name = getClass().getSimpleName();
-        Assert.assertTrue("Expected " + name + " but was " + driver.getTitle() + " (" + driver.getCurrentUrl() + ")",
-                isCurrent());
+        Assertions.assertTrue(isCurrent(),
+                "Expected " + name + " but was " + driver.getTitle() + " (" + driver.getCurrentUrl() + ")");
     }
 
     abstract public boolean isCurrent();

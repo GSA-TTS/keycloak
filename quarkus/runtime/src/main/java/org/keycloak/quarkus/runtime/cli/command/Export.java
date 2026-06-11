@@ -17,14 +17,12 @@
 
 package org.keycloak.quarkus.runtime.cli.command;
 
-import static org.keycloak.exportimport.ExportImportConfig.ACTION_EXPORT;
-
 import org.keycloak.config.OptionCategory;
 import org.keycloak.exportimport.ExportImportConfig;
-import org.keycloak.quarkus.runtime.configuration.mappers.ExportPropertyMappers;
+
 import picocli.CommandLine.Command;
 
-import java.util.EnumSet;
+import static org.keycloak.exportimport.ExportImportConfig.ACTION_EXPORT;
 
 @Command(name = Export.NAME,
         header = "Export data from realms to a file or directory.",
@@ -39,19 +37,16 @@ public final class Export extends AbstractNonServerCommand {
     }
 
     @Override
-    public void validateConfig() {
-        ExportPropertyMappers.validateConfig();
-        super.validateConfig();
-    }
-
-    @Override
     public String getName() {
         return NAME;
     }
 
     @Override
-    protected EnumSet<OptionCategory> excludedCategories() {
-        return EnumSet.of(OptionCategory.IMPORT);
+    public boolean isHiddenCategory(OptionCategory category) {
+        if (category == OptionCategory.EXPORT) {
+            return false;
+        }
+        return super.isHiddenCategory(category);
     }
 
 }

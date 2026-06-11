@@ -18,7 +18,6 @@
 package org.keycloak.admin.client.resource;
 
 import java.util.List;
-import java.util.Map;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
@@ -29,6 +28,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+
 import org.keycloak.representations.idm.OrganizationRepresentation;
 
 /**
@@ -59,8 +59,8 @@ public interface OrganizationsResource {
     /**
      * Returns organizations in the realm.
      *
-     * @param first index of the first element (pagination offset).
-     * @param max the maximum number of results.
+     * @param firstResult index of the first element (pagination offset).
+     * @param maxResults the maximum number of results.
      * @return a list containing the organizations.
      */
     @GET

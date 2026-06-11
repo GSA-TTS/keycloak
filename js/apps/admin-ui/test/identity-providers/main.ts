@@ -1,4 +1,4 @@
-import { Page, expect } from "@playwright/test";
+import { type Page, expect } from "@playwright/test";
 
 const SERVER_URL = "http://localhost:8080";
 const discoveryUrl = `${SERVER_URL}/realms/master/.well-known/openid-configuration`;
@@ -43,6 +43,69 @@ export async function createSAMLProvider(
   await clickAddButton(page);
 }
 
+export async function createSPIFFEProvider(
+  page: Page,
+  providerName: string,
+  trustDomain: string,
+  bundleEndpoint: string,
+) {
+  await clickProviderCard(page, providerName);
+  await page.getByTestId("config.trustDomain").fill(trustDomain);
+  await page.getByTestId("config.bundleEndpoint").fill(bundleEndpoint);
+  await clickAddButton(page);
+}
+
+export async function createJwtAuthorizationGrantProvider(
+  page: Page,
+  providerName: string,
+  issuer: string,
+  jwksUrl: string,
+) {
+  await clickProviderCard(page, providerName);
+  await expect(page.getByTestId("config.useJwksUrl")).toBeChecked();
+  await page.getByTestId("config.issuer").fill(issuer);
+  await page.getByTestId("config.jwksUrl").fill(jwksUrl);
+  await clickAddButton(page);
+}
+
+export async function createJwtAuthorizationGrantProviderKey(
+  page: Page,
+  providerName: string,
+  issuer: string,
+  keyId: string,
+  key: string,
+) {
+  await clickProviderCard(page, providerName);
+  await page.getByTestId("config.issuer").fill(issuer);
+  await expect(page.getByTestId("config.useJwksUrl")).toBeChecked();
+  await page.getByTestId("config.useJwksUrl").click({ force: true });
+  await expect(
+    page.getByTestId("config.publicKeySignatureVerifierKeyId"),
+  ).toBeVisible();
+  await page.getByTestId("config.publicKeySignatureVerifierKeyId").fill(keyId);
+  await page.getByTestId("config.publicKeySignatureVerifier").fill(key);
+  await clickAddButton(page);
+}
+
+export async function createDefaultTrustProvider(page: Page, jwksUrl: string) {
+  await page.goto(
+    `${SERVER_URL}/admin/master/console/#/master/identity-providers/default-trust/add`,
+  );
+  await expect(page.getByTestId("config.useJwksUrl")).toBeChecked();
+  await page.getByTestId("config.jwksUrl").fill(jwksUrl);
+  await clickAddButton(page);
+}
+
+export async function createKubernetesProvider(
+  page: Page,
+  providerName: string,
+  issuerUrl: string,
+) {
+  await clickProviderCard(page, providerName);
+  await page.getByTestId("config.issuer").fill(issuerUrl);
+  await clickAddButton(page);
+}
+
 export async function assertAuthorizationUrl(page: Page) {
   await expect(page.getByTestId("config.authorizationUrl")).toHaveValue(
     authorizationUrl,
@@ -65,7 +128,7 @@ export async function assertInvalidUrlNotification(
   urlType: UrlType,
 ) {
   await expect(page.getByTestId("last-alert")).toHaveText(
-    `Could not update the provider The url [${urlType}${urlType.startsWith("single") ? "U" : "_u"}rl] is malformed`,
+    `Could not update the provider. The url [${urlType}${urlType.startsWith("single") ? "U" : "_u"}rl] is malformed`,
   );
 }
 

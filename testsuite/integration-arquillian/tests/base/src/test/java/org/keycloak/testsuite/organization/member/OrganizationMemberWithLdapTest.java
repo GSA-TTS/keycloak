@@ -22,8 +22,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import jakarta.ws.rs.core.Response;
-import org.junit.ClassRule;
-import org.junit.Test;
+
 import org.keycloak.admin.client.resource.OrganizationResource;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.models.GroupModel;
@@ -39,6 +38,10 @@ import org.keycloak.testsuite.federation.ldap.LDAPTestContext;
 import org.keycloak.testsuite.organization.admin.AbstractOrganizationTest;
 import org.keycloak.testsuite.util.LDAPRule;
 import org.keycloak.testsuite.util.LDAPTestUtils;
+import org.keycloak.testsuite.util.runonserver.LdapHelper;
+
+import org.junit.ClassRule;
+import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,7 +49,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class OrganizationMemberWithLdapTest extends AbstractOrganizationTest {
 
@@ -59,8 +62,8 @@ public class OrganizationMemberWithLdapTest extends AbstractOrganizationTest {
 
         // add an LDAP provider with a group mapper
         Map<String, String> cfg = ldapRule.getConfig();
-        testingClient.testing().ldap(TEST_REALM_NAME).createLDAPProvider(cfg, true);
-        testingClient.testing().ldap(TEST_REALM_NAME).prepareGroupsLDAPTest();
+        runOnServer.fetchString(LdapHelper.createLDAPProvider(cfg, true));
+        runOnServer.run(LdapHelper.prepareGroupsLDAPTest());
     }
 
     @Test
@@ -81,9 +84,9 @@ public class OrganizationMemberWithLdapTest extends AbstractOrganizationTest {
             assertThat(testGroup, notNullValue());
         });
 
-        OrganizationResource organization = testRealm().organizations().get(createOrganization().getId());
+        OrganizationResource organization = managedRealm.admin().organizations().get(createOrganization().getId());
         OrganizationRepresentation orgRepresentation = organization.toRepresentation();
-        UserRepresentation ldapUser = testRealm().users().searchByUsername("johnkeycloak", true).get(0);
+        UserRepresentation ldapUser = managedRealm.admin().users().searchByUsername("johnkeycloak", true).get(0);
 
         // make the LDAP user join the organization and check it was successful.
         try (Response response = organization.members().addMember(ldapUser.getId())) {

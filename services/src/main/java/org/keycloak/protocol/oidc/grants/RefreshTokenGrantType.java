@@ -17,10 +17,11 @@
 
 package org.keycloak.protocol.oidc.grants;
 
+import java.util.Collections;
+import java.util.Set;
+
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-
-import org.jboss.logging.Logger;
 
 import org.keycloak.OAuth2Constants;
 import org.keycloak.OAuthErrorException;
@@ -36,6 +37,8 @@ import org.keycloak.services.clientpolicy.ClientPolicyException;
 import org.keycloak.services.clientpolicy.context.TokenRefreshContext;
 import org.keycloak.services.clientpolicy.context.TokenRefreshResponseContext;
 import org.keycloak.services.util.MtlsHoKTokenUtil;
+
+import org.jboss.logging.Logger;
 
 /**
  * OAuth 2.0 Refresh Token Grant
@@ -57,9 +60,10 @@ public class RefreshTokenGrantType extends OAuth2GrantTypeBase {
         }
 
         String scopeParameter = getRequestedScopes();
+        String resourceParameter = formParams.getFirst(OAuth2Constants.RESOURCE);
 
         try {
-            session.clientPolicy().triggerOnEvent(new TokenRefreshContext(formParams));
+            session.clientPolicy().triggerOnEvent(new TokenRefreshContext(formParams, client, scopeParameter));
             refreshToken = formParams.getFirst(OAuth2Constants.REFRESH_TOKEN);
         } catch (ClientPolicyException cpe) {
             event.detail(Details.REASON, Details.CLIENT_POLICY_ERROR);
@@ -72,7 +76,7 @@ public class RefreshTokenGrantType extends OAuth2GrantTypeBase {
         AccessTokenResponse res;
         try {
             // KEYCLOAK-6771 Certificate Bound Token
-            TokenManager.AccessTokenResponseBuilder responseBuilder = tokenManager.refreshAccessToken(session, session.getContext().getUri(), clientConnection, realm, client, refreshToken, event, headers, request, scopeParameter);
+            TokenManager.AccessTokenResponseBuilder responseBuilder = tokenManager.refreshAccessToken(session, session.getContext().getUri(), clientConnection, realm, client, refreshToken, event, headers, request, scopeParameter, resourceParameter);
 
             checkAndBindMtlsHoKToken(responseBuilder, clientConfig.isUseRefreshToken());
 
@@ -114,6 +118,11 @@ public class RefreshTokenGrantType extends OAuth2GrantTypeBase {
     @Override
     public EventType getEventType() {
         return EventType.REFRESH_TOKEN;
+    }
+    
+    @Override
+    public Set<String> getTokenParameterNames() {
+        return Collections.emptySet();
     }
 
 }
