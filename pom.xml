@@ -320,8 +320,6 @@
         <module>test-framework</module>
         <module>tests</module>
         <module>quarkus</module>
-        <module>keycloak-login.gov-integration</module>
-        <module>extensions/keycloak-api-key-demo</module>
         <module>scim</module>
         <module>ssf</module>
         <module>authzen</module>
