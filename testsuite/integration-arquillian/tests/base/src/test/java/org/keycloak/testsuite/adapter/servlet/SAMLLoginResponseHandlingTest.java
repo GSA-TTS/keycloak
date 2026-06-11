@@ -1,10 +1,13 @@
 package org.keycloak.testsuite.adapter.servlet;
 
-import org.jboss.arquillian.container.test.api.Deployment;
-import org.jboss.arquillian.graphene.page.Page;
-import org.jboss.shrinkwrap.api.spec.WebArchive;
-import org.junit.Assert;
-import org.junit.Test;
+import java.net.URI;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+
+import jakarta.ws.rs.core.Response;
+
 import org.keycloak.admin.client.resource.ClientResource;
 import org.keycloak.admin.client.resource.ProtocolMappersResource;
 import org.keycloak.dom.saml.v2.assertion.AttributeStatementType;
@@ -20,7 +23,7 @@ import org.keycloak.saml.processing.core.saml.v2.constants.X500SAMLProfileConsta
 import org.keycloak.testsuite.adapter.filter.AdapterActionsFilter;
 import org.keycloak.testsuite.adapter.page.Employee2Servlet;
 import org.keycloak.testsuite.adapter.page.EmployeeSigServlet;
-import org.keycloak.testsuite.admin.ApiUtil;
+import org.keycloak.testsuite.admin.AdminApiUtil;
 import org.keycloak.testsuite.arquillian.annotation.AppServerContainer;
 import org.keycloak.testsuite.saml.AbstractSamlTest;
 import org.keycloak.testsuite.util.Matchers;
@@ -28,18 +31,15 @@ import org.keycloak.testsuite.util.SamlClient;
 import org.keycloak.testsuite.util.SamlClientBuilder;
 import org.keycloak.testsuite.util.WaitUtils;
 import org.keycloak.testsuite.utils.arquillian.ContainerConstants;
+
+import org.jboss.arquillian.container.test.api.Deployment;
+import org.jboss.arquillian.graphene.page.Page;
+import org.jboss.shrinkwrap.api.spec.WebArchive;
+import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.openqa.selenium.By;
 import org.w3c.dom.Document;
 
-import jakarta.ws.rs.core.Response;
-import java.net.URI;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Set;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.keycloak.testsuite.admin.ApiUtil.getCreatedId;
 import static org.keycloak.testsuite.saml.AbstractSamlTest.REALM_PRIVATE_KEY;
 import static org.keycloak.testsuite.saml.AbstractSamlTest.REALM_PUBLIC_KEY;
@@ -49,6 +49,9 @@ import static org.keycloak.testsuite.util.UIUtils.getRawPageSource;
 import static org.keycloak.testsuite.util.URLAssert.assertCurrentUrlStartsWith;
 import static org.keycloak.testsuite.util.WaitUtils.waitForPageToLoad;
 import static org.keycloak.testsuite.util.WaitUtils.waitUntilElement;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * @author mhajas
@@ -135,7 +138,7 @@ public class SAMLLoginResponseHandlingTest extends AbstractSAMLServletAdapterTes
 
     @Test
     public void testAttributes() throws Exception {
-        ClientResource clientResource = ApiUtil.findClientResourceByClientId(testRealmResource(), AbstractSamlTest.SAML_CLIENT_ID_EMPLOYEE_2);
+        ClientResource clientResource = AdminApiUtil.findClientResourceByClientId(testRealmResource(), AbstractSamlTest.SAML_CLIENT_ID_EMPLOYEE_2);
         ProtocolMappersResource protocolMappersResource = clientResource.getProtocolMappers();
 
         Map<String, String> config = new LinkedHashMap<>();
@@ -188,7 +191,7 @@ public class SAMLLoginResponseHandlingTest extends AbstractSAMLServletAdapterTes
 
         driver.navigate().to(employee2ServletPage.getUriBuilder().clone().path("getAssertionFromDocument").build().toURL());
         waitForPageToLoad();
-        Assert.assertEquals("", getRawPageSource());
+        Assertions.assertEquals("", getRawPageSource());
 
         employee2ServletPage.logout();
         checkLoggedOut(employee2ServletPage, testRealmSAMLPostLoginPage);

@@ -19,6 +19,7 @@ package org.keycloak.models;
 
 import java.util.Collections;
 import java.util.List;
+
 import org.keycloak.storage.ReadOnlyException;
 
 /**
@@ -45,6 +46,7 @@ public class WebAuthnPolicyTwoFactorDefaults extends WebAuthnPolicy {
         this.acceptableAaguids = Collections.emptyList();
         this.extraOrigins = Collections.emptyList();
         this.passkeysEnabled = null;
+        this.mediation = null;
     }
 
     @Override
@@ -104,6 +106,11 @@ public class WebAuthnPolicyTwoFactorDefaults extends WebAuthnPolicy {
 
     @Override
     public void setPasskeysEnabled(Boolean passkeysEnabled) {
+        throwReadOnlyException();
+    }
+
+    @Override
+    public void setMediation(String mediation) {
         throwReadOnlyException();
     }
 

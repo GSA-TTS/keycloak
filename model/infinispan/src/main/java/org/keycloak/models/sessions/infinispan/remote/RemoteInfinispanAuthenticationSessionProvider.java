@@ -21,15 +21,14 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.keycloak.cluster.ClusterProvider;
+import org.keycloak.common.util.SecretGenerator;
 import org.keycloak.common.util.Time;
-import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.cache.infinispan.events.AuthenticationSessionAuthNoteUpdateEvent;
 import org.keycloak.models.sessions.infinispan.InfinispanAuthenticationSessionProviderFactory;
 import org.keycloak.models.sessions.infinispan.entities.RootAuthenticationSessionEntity;
 import org.keycloak.models.sessions.infinispan.remote.transaction.AuthenticationSessionChangeLogTransaction;
-import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.sessions.AuthenticationSessionCompoundId;
 import org.keycloak.sessions.AuthenticationSessionProvider;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
@@ -53,7 +52,7 @@ public class RemoteInfinispanAuthenticationSessionProvider implements Authentica
 
     @Override
     public RootAuthenticationSessionModel createRootAuthenticationSession(RealmModel realm) {
-        return createRootAuthenticationSession(realm, KeycloakModelUtils.generateId());
+        return createRootAuthenticationSession(realm, SecretGenerator.SECURE_ID_GENERATOR.get());
     }
 
     @Override
@@ -81,23 +80,8 @@ public class RemoteInfinispanAuthenticationSessionProvider implements Authentica
     }
 
     @Override
-    public void removeAllExpired() {
-        // Rely on expiration of cache entries provided by infinispan. Nothing needed here.
-    }
-
-    @Override
-    public void removeExpired(RealmModel realm) {
-        // Rely on expiration of cache entries provided by infinispan. Nothing needed here.
-    }
-
-    @Override
     public void onRealmRemoved(RealmModel realm) {
         transaction.removeByRealmId(realm.getId());
-    }
-
-    @Override
-    public void onClientRemoved(RealmModel realm, ClientModel client) {
-        // No update anything on clientRemove for now. AuthenticationSessions of removed client will be handled at runtime if needed.
     }
 
     @Override

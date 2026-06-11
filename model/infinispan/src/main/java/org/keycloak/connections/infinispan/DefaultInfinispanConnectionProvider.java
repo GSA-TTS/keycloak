@@ -18,6 +18,7 @@
 package org.keycloak.connections.infinispan;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -34,14 +35,15 @@ import org.infinispan.util.concurrent.BlockingManager;
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
  */
-public class DefaultInfinispanConnectionProvider implements InfinispanConnectionProvider {
+public record DefaultInfinispanConnectionProvider(EmbeddedCacheManager cacheManager,
+                                                  TopologyInfo topologyInfo,
+                                                  NodeInfo nodeInfo) implements InfinispanConnectionProvider {
 
-    private final EmbeddedCacheManager cacheManager;
-    private final TopologyInfo topologyInfo;
 
-    public DefaultInfinispanConnectionProvider(EmbeddedCacheManager cacheManager, TopologyInfo topologyInfo) {
-        this.cacheManager = cacheManager;
-        this.topologyInfo = topologyInfo;
+    public DefaultInfinispanConnectionProvider {
+        Objects.requireNonNull(cacheManager);
+        Objects.requireNonNull(topologyInfo);
+        Objects.requireNonNull(nodeInfo);
     }
 
     private static PersistenceManager persistenceManager(Cache<?, ?> cache) {
@@ -68,12 +70,18 @@ public class DefaultInfinispanConnectionProvider implements InfinispanConnection
     }
 
     @Override
+    public NodeInfo getNodeInfo() {
+        return nodeInfo;
+    }
+
+    @Override
     public CompletionStage<Void> migrateToProtoStream() {
         // Only the CacheStore (persistence) stores data in binary format and needs to be deleted.
         // We assume rolling-upgrade between KC 25 and KC 26 is not available, in other words, KC 25 and KC 26 servers are not present in the same cluster.
         var stage = CompletionStages.aggregateCompletionStage();
         Arrays.stream(CLUSTERED_CACHE_NAMES)
-                .map(this::getCache)
+                .map(cacheName -> cacheManager.getCache(cacheName, false))
+                .filter(Objects::nonNull)
                 .map(DefaultInfinispanConnectionProvider::persistenceManager)
                 .map(DefaultInfinispanConnectionProvider::clearPersistenceManager)
                 .forEach(stage::dependsOn);

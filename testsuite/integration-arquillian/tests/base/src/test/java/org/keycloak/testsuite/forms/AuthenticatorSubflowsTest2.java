@@ -17,17 +17,16 @@
 
 package org.keycloak.testsuite.forms;
 
-import org.jboss.arquillian.graphene.page.Page;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.keycloak.authentication.authenticators.browser.UsernamePasswordFormFactory;
 import org.keycloak.events.Details;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.AuthenticationFlowModel;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.RealmModel;
+import org.keycloak.testframework.events.EventAssertion;
 import org.keycloak.testsuite.AbstractChangeImportedUserPasswordsTest;
 import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.authentication.ExpectedParamAuthenticator;
@@ -36,10 +35,12 @@ import org.keycloak.testsuite.authentication.PushButtonAuthenticatorFactory;
 import org.keycloak.testsuite.pages.AppPage;
 import org.keycloak.testsuite.pages.ErrorPage;
 import org.keycloak.testsuite.pages.LoginPage;
-import org.openqa.selenium.By;
+import org.keycloak.testsuite.pages.PushTheButtonPage;
 
-import java.util.HashMap;
-import java.util.Map;
+import org.jboss.arquillian.graphene.page.Page;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 
 /**
  * @author <a href="mailto:n1330@me.com">Tomohiro Nagai</a>
@@ -57,6 +58,9 @@ public class AuthenticatorSubflowsTest2 extends AbstractChangeImportedUserPasswo
 
     @Page
     protected ErrorPage errorPage;
+
+    @Page
+    protected PushTheButtonPage pushTheButtonPage;
 
     @Before
     public void setupFlows() {
@@ -165,7 +169,7 @@ public class AuthenticatorSubflowsTest2 extends AbstractChangeImportedUserPasswo
         oauth.fillLoginForm("test-user@localhost", getPassword("test-user@localhost"));
         appPage.assertCurrent();
 
-        events.expectLogin().detail(Details.USERNAME, "test-user@localhost").assertEvent();
+        EventAssertion.expectLoginSuccess(events.poll()).details(Details.USERNAME, "test-user@localhost");
     }
 
 
@@ -178,13 +182,13 @@ public class AuthenticatorSubflowsTest2 extends AbstractChangeImportedUserPasswo
 
         // Fill username+password. I am redirected push the button.
         oauth.fillLoginForm("test-user@localhost", getPassword("test-user@localhost"));
-        Assert.assertEquals("PushTheButton", driver.getTitle());
+        pushTheButtonPage.assertCurrent();
 
         // Push the button. I am successfully authenticated.
-        driver.findElement(By.name("submit1")).click();
+        pushTheButtonPage.submit();
         appPage.assertCurrent();
 
-        events.expectLogin().detail(Details.USERNAME, "test-user@localhost").assertEvent();
+        EventAssertion.expectLoginSuccess(events.poll()).details(Details.USERNAME, "test-user@localhost");
     }
 
 }

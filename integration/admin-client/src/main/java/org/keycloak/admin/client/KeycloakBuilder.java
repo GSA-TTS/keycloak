@@ -17,10 +17,9 @@
 
 package org.keycloak.admin.client;
 
-import static org.keycloak.OAuth2Constants.CLIENT_CREDENTIALS;
-import static org.keycloak.OAuth2Constants.PASSWORD;
-
 import jakarta.ws.rs.client.Client;
+
+import static org.keycloak.OAuth2Constants.PASSWORD;
 
 /**
  * Provides a {@link Keycloak} client builder with the ability to customize the underlying
@@ -35,7 +34,7 @@ import jakarta.ws.rs.client.Client;
  *     .password("pass")
  *     .clientId("client")
  *     .clientSecret("secret")
- *     .resteasyClient(new ResteasyClientBuilderImpl()
+ *     .resteasyClient(ResteasyClientClassicProvider.createClientBuilder()
  *                 .connectionPoolSize(20)
  *                 .build()
  *                 .register(org.keycloak.admin.client.JacksonProvider.class, 100))
@@ -66,6 +65,7 @@ public class KeycloakBuilder {
     private Client resteasyClient;
     private String authorization;
     private String scope;
+    private boolean useDPoP = false;
 
     public KeycloakBuilder serverUrl(String serverUrl) {
         this.serverUrl = serverUrl;
@@ -125,6 +125,17 @@ public class KeycloakBuilder {
     }
 
     /**
+     * @param useDPoP If true, then admin-client will add DPoP proofs to the token-requests and to the admin REST API requests. DPoP feature must be
+     *                enabled on Keycloak server side to work properly. It is false by default. Parameter is supposed to be used with Keycloak server 26.4.0 or later as
+     *                earlier versions did not support DPoP requests for admin REST API
+     * @return admin client builder
+     */
+    public KeycloakBuilder useDPoP(boolean useDPoP) {
+        this.useDPoP = useDPoP;
+        return this;
+    }
+
+    /**
      * Builds a new Keycloak client from this builder.
      */
     public Keycloak build() {
@@ -154,7 +165,7 @@ public class KeycloakBuilder {
             throw new IllegalStateException("clientId required");
         }
 
-        return new Keycloak(serverUrl, realm, username, password, clientId, clientSecret, grantType, resteasyClient, authorization, scope);
+        return new Keycloak(serverUrl, realm, username, password, clientId, clientSecret, grantType, resteasyClient, authorization, scope, useDPoP);
     }
 
     private KeycloakBuilder() {

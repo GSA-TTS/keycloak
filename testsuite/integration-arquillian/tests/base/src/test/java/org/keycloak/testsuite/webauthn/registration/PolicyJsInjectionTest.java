@@ -17,9 +17,11 @@
 
 package org.keycloak.testsuite.webauthn.registration;
 
-import org.hamcrest.Matchers;
-import org.junit.Test;
-import org.junit.Ignore;
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.testsuite.arquillian.annotation.IgnoreBrowserDriver;
 import org.keycloak.testsuite.webauthn.AbstractWebAuthnVirtualTest;
@@ -27,13 +29,11 @@ import org.keycloak.testsuite.webauthn.pages.WebAuthnAuthenticatorsList;
 import org.keycloak.testsuite.webauthn.updaters.AbstractWebAuthnRealmUpdater;
 import org.keycloak.testsuite.webauthn.utils.WebAuthnRealmData;
 import org.keycloak.utils.StringUtil;
-import org.openqa.selenium.firefox.FirefoxDriver;
-import org.openqa.selenium.firefox.FirefoxOptions;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import org.hamcrest.Matchers;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.openqa.selenium.firefox.FirefoxDriver;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
@@ -67,7 +67,7 @@ public class PolicyJsInjectionTest extends AbstractWebAuthnVirtualTest {
                 .setWebAuthnPolicyRpId(PROMPT_SCRIPT)
                 .update()) {
 
-            WebAuthnRealmData data = new WebAuthnRealmData(testRealm().toRepresentation(), isPasswordless());
+            WebAuthnRealmData data = new WebAuthnRealmData(managedRealm.admin().toRepresentation(), isPasswordless());
             assertThat(data.getRpId(), is(PROMPT_SCRIPT));
 
             registerDefaultUser(false);
@@ -151,7 +151,7 @@ public class PolicyJsInjectionTest extends AbstractWebAuthnVirtualTest {
         if (!isPasswordless()) {
             logout();
 
-            loginPage.open();
+            oauth.openLoginForm();
             loginPage.assertCurrent(TEST_REALM_NAME);
             loginPage.login(USERNAME, getPassword(USERNAME));
 
@@ -160,7 +160,7 @@ public class PolicyJsInjectionTest extends AbstractWebAuthnVirtualTest {
             assertThat(authenticators, notNullValue());
             assertThat(authenticators.getItems(), not(Matchers.empty()));
 
-            assertThat(authenticators.getLabels().get(0), is("label`;window.prompt(\"another\");"));
+            assertThat(authenticators.getLabels().get(0), is(originalLabel));
         }
     }
 
@@ -182,7 +182,7 @@ public class PolicyJsInjectionTest extends AbstractWebAuthnVirtualTest {
 
         try (Closeable u = updater.update()) {
 
-            WebAuthnRealmData data = new WebAuthnRealmData(testRealm().toRepresentation(), isPasswordless());
+            WebAuthnRealmData data = new WebAuthnRealmData(managedRealm.admin().toRepresentation(), isPasswordless());
             assertThat(realmGetter.apply(data), is(expectedValue));
 
             boolean shouldSuccess = StringUtil.isBlank(errorMessage);

@@ -1,39 +1,41 @@
 package org.keycloak.quarkus.runtime.configuration.mappers;
 
-import static org.keycloak.config.LoggingOptions.DEFAULT_LOG_FORMAT;
-import static org.keycloak.config.LoggingOptions.LOG_CONSOLE_ENABLED;
-import static org.keycloak.config.LoggingOptions.LOG_FILE_ENABLED;
-import static org.keycloak.config.LoggingOptions.LOG_SYSLOG_ENABLED;
-import static org.keycloak.config.LoggingOptions.SYSLOG_COUNTING_FRAMING_PROTOCOL_DEPENDENT;
-import static org.keycloak.quarkus.runtime.configuration.Configuration.isSet;
-import static org.keycloak.quarkus.runtime.configuration.Configuration.isTrue;
-import static org.keycloak.quarkus.runtime.configuration.mappers.PropertyMapper.fromOption;
-
 import java.io.File;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import io.quarkus.runtime.configuration.MemorySizeConverter;
-import org.jboss.logmanager.LogContext;
 import org.keycloak.common.Profile;
 import org.keycloak.config.LoggingOptions;
 import org.keycloak.config.Option;
 import org.keycloak.quarkus.runtime.Messages;
+import org.keycloak.quarkus.runtime.cli.Picocli;
 import org.keycloak.quarkus.runtime.cli.PropertyException;
 import org.keycloak.quarkus.runtime.configuration.Configuration;
 
+import io.quarkus.runtime.configuration.MemorySizeConverter;
 import io.smallrye.config.ConfigSourceInterceptorContext;
+import org.jboss.logmanager.LogContext;
 
-public final class LoggingPropertyMappers {
+import static org.keycloak.config.LoggingOptions.DEFAULT_LOG_FORMAT;
+import static org.keycloak.config.LoggingOptions.LOG_CONSOLE_ENABLED;
+import static org.keycloak.config.LoggingOptions.LOG_FILE_ENABLED;
+import static org.keycloak.config.LoggingOptions.LOG_SYSLOG_ENABLED;
+import static org.keycloak.quarkus.runtime.configuration.Configuration.isSet;
+import static org.keycloak.quarkus.runtime.configuration.Configuration.isTrue;
+import static org.keycloak.quarkus.runtime.configuration.mappers.PropertyMapper.fromOption;
+
+public final class LoggingPropertyMappers implements PropertyMapperGrouping {
 
     private static final String CONSOLE_ENABLED_MSG = "Console log handler is activated";
     private static final String FILE_ENABLED_MSG = "File log handler is activated";
@@ -42,16 +44,21 @@ public final class LoggingPropertyMappers {
 
     private final static Map<String, Map<String, String>> rootLogLevels = new HashMap<String, Map<String,String>>();
 
-    private LoggingPropertyMappers() {
-    }
 
-    public static PropertyMapper<?>[] getMappers() {
+    @Override
+    public List<PropertyMapper<?>> getPropertyMappers() {
         rootLogLevels.clear(); // reset the cached root log level and categories
-        PropertyMapper<?>[] defaultMappers = new PropertyMapper[]{
+        return List.of(
                 fromOption(LoggingOptions.LOG)
                         .paramLabel("<handler>")
                         .build(),
                 fromOption(LoggingOptions.LOG_ASYNC)
+                        .build(),
+                fromOption(LoggingOptions.LOG_SERVICE_NAME)
+                        .paramLabel("name")
+                        .build(),
+                fromOption(LoggingOptions.LOG_SERVICE_ENVIRONMENT)
+                        .paramLabel("environment")
                         .build(),
                 // Console
                 fromOption(LoggingOptions.LOG_CONSOLE_OUTPUT)
@@ -77,6 +84,14 @@ public final class LoggingPropertyMappers {
                         .to("quarkus.log.console.json.log-format")
                         .paramLabel("format")
                         .build(),
+                fromOption(LoggingOptions.LOG_SERVICE_NAME).mapFrom(LoggingOptions.LOG_SERVICE_NAME)
+                        .isEnabled(LoggingPropertyMappers::isConsoleJsonEnabled, "%s and output is set to 'json'".formatted(CONSOLE_ENABLED_MSG))
+                        .to("quarkus.log.console.json.additional-field.\"service.name\".value")
+                        .build(),
+                fromOption(LoggingOptions.LOG_SERVICE_ENVIRONMENT).mapFrom(LoggingOptions.LOG_SERVICE_ENVIRONMENT)
+                        .isEnabled(LoggingPropertyMappers::isConsoleJsonEnabled, "%s and output is set to 'json'".formatted(CONSOLE_ENABLED_MSG))
+                        .to("quarkus.log.console.json.additional-field.\"service.environment\".value")
+                        .build(),
                 fromOption(LoggingOptions.LOG_CONSOLE_INCLUDE_TRACE)
                         .isEnabled(() -> LoggingPropertyMappers.isConsoleEnabled() && TracingPropertyMappers.isTracingEnabled(),
                                 "Console log handler and Tracing is activated")
@@ -87,7 +102,8 @@ public final class LoggingPropertyMappers {
                         .build(),
                 fromOption(LoggingOptions.LOG_CONSOLE_COLOR)
                         .isEnabled(LoggingPropertyMappers::isConsoleEnabled, CONSOLE_ENABLED_MSG)
-                        .to("quarkus.log.console.color")
+                        .to("quarkus.console.color")
+                        .transformer(this::transformConsoleColor)
                         .build(),
                 fromOption(LoggingOptions.LOG_CONSOLE_ENABLED)
                         .mapFrom(LoggingOptions.LOG, LoggingPropertyMappers.resolveLogHandler(LoggingOptions.DEFAULT_LOG_HANDLER.name()))
@@ -132,6 +148,14 @@ public final class LoggingPropertyMappers {
                         .to("quarkus.log.file.json.log-format")
                         .paramLabel("format")
                         .build(),
+                fromOption(LoggingOptions.LOG_SERVICE_NAME).mapFrom(LoggingOptions.LOG_SERVICE_NAME)
+                        .isEnabled(LoggingPropertyMappers::isFileJsonEnabled, FILE_ENABLED_MSG + " and output is set to 'json'")
+                        .to("quarkus.log.file.json.additional-field.\"service.name\".value")
+                        .build(),
+                fromOption(LoggingOptions.LOG_SERVICE_ENVIRONMENT).mapFrom(LoggingOptions.LOG_SERVICE_ENVIRONMENT)
+                        .isEnabled(LoggingPropertyMappers::isFileJsonEnabled, FILE_ENABLED_MSG + " and output is set to 'json'")
+                        .to("quarkus.log.file.json.additional-field.\"service.environment\".value")
+                        .build(),
                 fromOption(LoggingOptions.LOG_FILE_INCLUDE_TRACE)
                         .isEnabled(() -> LoggingPropertyMappers.isFileEnabled() && TracingPropertyMappers.isTracingEnabled(),
                                 "File log handler and Tracing is activated")
@@ -156,6 +180,30 @@ public final class LoggingPropertyMappers {
                         .isEnabled(LoggingPropertyMappers::isFileAsyncEnabled, "%s and asynchronous logging is enabled".formatted(FILE_ENABLED_MSG))
                         .to("quarkus.log.file.async.queue-length")
                         .paramLabel("queue-length")
+                        .build(),
+                // File rotation
+                fromOption(LoggingOptions.LOG_FILE_ROTATION_ENABLED)
+                        .isEnabled(LoggingPropertyMappers::isFileEnabled, FILE_ENABLED_MSG)
+                        .to("quarkus.log.file.rotation.enabled")
+                        .build(),
+                fromOption(LoggingOptions.LOG_FILE_ROTATION_MAX_FILE_SIZE)
+                        .isEnabled(LoggingPropertyMappers::isFileRotationEnabled, "%s and log file rotation is enabled".formatted(FILE_ENABLED_MSG))
+                        .to("quarkus.log.file.rotation.max-file-size")
+                        .paramLabel("size")
+                        .build(),
+                fromOption(LoggingOptions.LOG_FILE_ROTATION_MAX_BACKUP_INDEX)
+                        .isEnabled(LoggingPropertyMappers::isFileRotationEnabled, "%s and log file rotation is enabled".formatted(FILE_ENABLED_MSG))
+                        .to("quarkus.log.file.rotation.max-backup-index")
+                        .paramLabel("index")
+                        .build(),
+                fromOption(LoggingOptions.LOG_FILE_ROTATION_FILE_SUFFIX)
+                        .isEnabled(LoggingPropertyMappers::isFileRotationEnabled, "%s and log file rotation is enabled".formatted(FILE_ENABLED_MSG))
+                        .to("quarkus.log.file.rotation.file-suffix")
+                        .paramLabel("suffix")
+                        .build(),
+                fromOption(LoggingOptions.LOG_FILE_ROTATION_ROTATE_ON_BOOT)
+                        .isEnabled(LoggingPropertyMappers::isFileRotationEnabled, "%s and log file rotation is enabled".formatted(FILE_ENABLED_MSG))
+                        .to("quarkus.log.file.rotation.rotate-on-boot")
                         .build(),
                 // Log level
                 fromOption(LoggingOptions.LOG_LEVEL)
@@ -220,6 +268,14 @@ public final class LoggingPropertyMappers {
                         .to("quarkus.log.syslog.json.log-format")
                         .paramLabel("format")
                         .build(),
+                fromOption(LoggingOptions.LOG_SERVICE_NAME).mapFrom(LoggingOptions.LOG_SERVICE_NAME)
+                        .isEnabled(LoggingPropertyMappers::isSyslogJsonEnabled, SYSLOG_ENABLED_MSG + " and output is set to 'json'")
+                        .to("quarkus.log.syslog.json.additional-field.\"service.name\".value")
+                        .build(),
+                fromOption(LoggingOptions.LOG_SERVICE_ENVIRONMENT).mapFrom(LoggingOptions.LOG_SERVICE_ENVIRONMENT)
+                        .isEnabled(LoggingPropertyMappers::isSyslogJsonEnabled, SYSLOG_ENABLED_MSG + " and output is set to 'json'")
+                        .to("quarkus.log.syslog.json.additional-field.\"service.environment\".value")
+                        .build(),
                 fromOption(LoggingOptions.LOG_SYSLOG_INCLUDE_TRACE)
                         .isEnabled(() -> LoggingPropertyMappers.isSyslogEnabled() && TracingPropertyMappers.isTracingEnabled(),
                                 "Syslog handler and Tracing is activated")
@@ -236,7 +292,6 @@ public final class LoggingPropertyMappers {
                         .build(),
                 fromOption(LoggingOptions.LOG_SYSLOG_COUNTING_FRAMING)
                         .isEnabled(LoggingPropertyMappers::isSyslogEnabled, SYSLOG_ENABLED_MSG)
-                        .transformer(LoggingPropertyMappers::resolveSyslogCountingFraming)
                         .to("quarkus.log.syslog.use-counting-framing")
                         .paramLabel("strategy")
                         .build(),
@@ -260,11 +315,13 @@ public final class LoggingPropertyMappers {
                         .isEnabled(LoggingPropertyMappers::isMdcActive, "MDC logging is enabled")
                         .to("kc.spi-mapped-diagnostic-context--default--mdc-keys")
                         .paramLabel("keys")
-                        .build(),
+                        .build()
 
-        };
+        );
+    }
 
-        return defaultMappers;
+    private String transformConsoleColor(String value, ConfigSourceInterceptorContext context) {
+        return Optional.ofNullable(value).orElseGet(() -> Boolean.toString(Picocli.hasColorSupport()));
     }
 
     public static boolean isConsoleEnabled() {
@@ -289,6 +346,10 @@ public final class LoggingPropertyMappers {
 
     public static boolean isFileJsonEnabled() {
         return isFileEnabled() && isTrue("quarkus.log.file.json.enabled");
+    }
+
+    public static boolean isFileRotationEnabled() {
+        return isFileEnabled() && isTrue(LoggingOptions.LOG_FILE_ROTATION_ENABLED);
     }
 
     public static boolean isSyslogEnabled() {
@@ -428,7 +489,7 @@ public final class LoggingPropertyMappers {
         return LoggingOptions.DEFAULT_LOG_FORMAT;
     }
 
-    private static String upperCase(String value, ConfigSourceInterceptorContext context) {
+    static String upperCase(String value, ConfigSourceInterceptorContext context) {
         return value.toUpperCase(Locale.ROOT);
     }
 
@@ -440,20 +501,4 @@ public final class LoggingPropertyMappers {
             throw new PropertyException(String.format("Invalid value for option '--log-syslog-max-length': %s", e.getMessage()));
         }
     }
-
-    // Workaround BEGIN - for https://github.com/keycloak/keycloak/issues/39893
-    // Remove once the https://github.com/quarkusio/quarkus/issues/48036 is included in Keycloak as Quarkus might handle it on its own
-    private static String resolveSyslogCountingFraming(String value, ConfigSourceInterceptorContext context) {
-        if (SYSLOG_COUNTING_FRAMING_PROTOCOL_DEPENDENT.equals(value)) {
-            return Configuration.getOptionalKcValue(LoggingOptions.LOG_SYSLOG_PROTOCOL)
-                    .map(protocol -> switch (protocol) {
-                        case "tcp", "ssl-tcp" -> Boolean.TRUE.toString();
-                        case "udp" -> Boolean.FALSE.toString();
-                        default -> throw new PropertyException("Invalid Syslog protocol: " + protocol);
-                    })
-                    .orElse(Boolean.FALSE.toString());
-        }
-        return value;
-    }
-    // Workaround END
 }

@@ -41,20 +41,20 @@ export const RevocationModal = ({
       addAlert(t("noAdminUrlSet"), AlertVariant.warning);
     } else if (failedCount > 0) {
       addAlert(
-        t("" + prefixKey + "Success", {
+        t(prefixKey + "Success", {
           successNodes: result.successRequests,
         }),
         AlertVariant.success,
       );
       addAlert(
-        t("" + prefixKey + "Fail", {
+        t(prefixKey + "Fail", {
           failedNodes: result.failedRequests,
         }),
         AlertVariant.danger,
       );
     } else {
       addAlert(
-        t("" + prefixKey + "Success", {
+        t(prefixKey + "Success", {
           successNodes: result.successRequests,
         }),
         AlertVariant.success,
@@ -178,9 +178,9 @@ export const RevocationModal = ({
             autoFocus
             readOnly
             value={
-              realm?.notBefore === 0
+              realm.notBefore === 0
                 ? (t("none") as string)
-                : new Date(realm?.notBefore! * 1000).toString()
+                : new Date(realm.notBefore! * 1000).toString()
             }
             type="text"
             id="not-before"

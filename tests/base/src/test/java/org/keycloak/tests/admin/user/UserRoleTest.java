@@ -1,7 +1,11 @@
 package org.keycloak.tests.admin.user;
 
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+
 import jakarta.ws.rs.core.Response;
-import org.junit.jupiter.api.Test;
+
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.RoleMappingResource;
 import org.keycloak.events.admin.OperationType;
@@ -9,29 +13,26 @@ import org.keycloak.events.admin.ResourceType;
 import org.keycloak.models.Constants;
 import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.MappingsRepresentation;
-import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.testframework.annotations.InjectRealm;
 import org.keycloak.testframework.annotations.KeycloakIntegrationTest;
 import org.keycloak.testframework.events.AdminEventAssertion;
 import org.keycloak.testframework.injection.LifeCycle;
-import org.keycloak.testframework.realm.ClientConfigBuilder;
-import org.keycloak.testframework.realm.GroupConfigBuilder;
+import org.keycloak.testframework.realm.ClientBuilder;
+import org.keycloak.testframework.realm.GroupBuilder;
 import org.keycloak.testframework.realm.ManagedRealm;
-import org.keycloak.testframework.realm.UserConfigBuilder;
+import org.keycloak.testframework.realm.RoleBuilder;
+import org.keycloak.testframework.realm.UserBuilder;
+import org.keycloak.testframework.util.ApiUtil;
 import org.keycloak.tests.utils.admin.AdminEventPaths;
-import org.keycloak.tests.utils.admin.ApiUtil;
-import org.keycloak.testsuite.events.TestEventsListenerProviderFactory;
-import org.keycloak.testsuite.util.RoleBuilder;
 
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
+import org.junit.jupiter.api.Test;
+
+import static org.keycloak.tests.utils.Assert.assertNames;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.keycloak.tests.utils.Assert.assertNames;
 
 @KeycloakIntegrationTest
 public class UserRoleTest extends AbstractUserTest {
@@ -42,11 +43,7 @@ public class UserRoleTest extends AbstractUserTest {
     @Test
     public void roleMappings() {
         RealmResource realm = managedRealm.admin();
-        // Enable events
-        RealmRepresentation realmRep = addTestEventListener(managedRealm.admin().toRepresentation());
-        managedRealm.admin().update(realmRep);
-
-        RoleRepresentation realmCompositeRole = RoleBuilder.create().name("realm-composite").singleAttribute("attribute1", "value1").build();
+        RoleRepresentation realmCompositeRole = RoleBuilder.create().name("realm-composite").attribute("attribute1", "value1").build();
 
         realm.roles().create(RoleBuilder.create().name("realm-role").build());
         realm.roles().create(realmCompositeRole);
@@ -54,11 +51,11 @@ public class UserRoleTest extends AbstractUserTest {
         realm.roles().get("realm-composite").addComposites(Collections.singletonList(realm.roles().get("realm-child").toRepresentation()));
 
         final String clientUuid;
-        try (Response response = realm.clients().create(ClientConfigBuilder.create().clientId("myclient").build())) {
+        try (Response response = realm.clients().create(ClientBuilder.create().clientId("myclient").build())) {
             clientUuid = ApiUtil.getCreatedId(response);
         }
 
-        RoleRepresentation clientCompositeRole = RoleBuilder.create().name("client-composite").singleAttribute("attribute1", "value1").build();
+        RoleRepresentation clientCompositeRole = RoleBuilder.create().name("client-composite").attribute("attribute1", "value1").build();
 
 
         realm.clients().get(clientUuid).roles().create(RoleBuilder.create().name("client-role").build());
@@ -68,7 +65,7 @@ public class UserRoleTest extends AbstractUserTest {
         realm.clients().get(clientUuid).roles().get("client-composite").addComposites(Collections.singletonList(realm.clients().get(clientUuid).roles().get("client-child").toRepresentation()));
 
         final String userId;
-        try (Response response = realm.users().create(UserConfigBuilder.create().username("myuser").build())) {
+        try (Response response = realm.users().create(UserBuilder.create().username("myuser").build())) {
             userId = ApiUtil.getCreatedId(response);
         }
 
@@ -152,7 +149,7 @@ public class UserRoleTest extends AbstractUserTest {
                 .addComposites(Collections.singletonList(realm.roles().get("realm-child").toRepresentation()));
         realm.roles().create(RoleBuilder.create().name("realm-role-in-group").build());
 
-        Response response = realm.clients().create(ClientConfigBuilder.create().clientId("myclient").build());
+        Response response = realm.clients().create(ClientBuilder.create().clientId("myclient").build());
         String clientUuid = ApiUtil.getCreatedId(response);
         response.close();
 
@@ -163,12 +160,12 @@ public class UserRoleTest extends AbstractUserTest {
                 .singletonList(realm.clients().get(clientUuid).roles().get("client-child").toRepresentation()));
         realm.clients().get(clientUuid).roles().create(RoleBuilder.create().name("client-role-in-group").build());
 
-        GroupRepresentation group = GroupConfigBuilder.create().name("mygroup").build();
+        GroupRepresentation group = GroupBuilder.create().name("mygroup").build();
         response = realm.groups().add(group);
         String groupId = ApiUtil.getCreatedId(response);
         response.close();
 
-        response = realm.users().create(UserConfigBuilder.create().username("myuser").build());
+        response = realm.users().create(UserBuilder.create().username("myuser").build());
         String userId = ApiUtil.getCreatedId(response);
         response.close();
 
@@ -238,17 +235,5 @@ public class UserRoleTest extends AbstractUserTest {
         }
 
         return null;
-    }
-
-    private RealmRepresentation addTestEventListener(RealmRepresentation rep) {
-        if (rep.getEventsListeners() == null) {
-            rep.setEventsListeners(new LinkedList<String>());
-        }
-
-        if (!rep.getEventsListeners().contains(TestEventsListenerProviderFactory.PROVIDER_ID)) {
-            rep.getEventsListeners().add(TestEventsListenerProviderFactory.PROVIDER_ID);
-        }
-
-        return rep;
     }
 }

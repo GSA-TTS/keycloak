@@ -17,6 +17,11 @@
 
 package org.keycloak.models;
 
+import java.net.URI;
+import java.util.Locale;
+
+import jakarta.ws.rs.core.HttpHeaders;
+
 import org.keycloak.Token;
 import org.keycloak.common.ClientConnection;
 import org.keycloak.http.HttpRequest;
@@ -24,10 +29,6 @@ import org.keycloak.http.HttpResponse;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.theme.Theme;
 import org.keycloak.urls.UrlType;
-
-import jakarta.ws.rs.core.HttpHeaders;
-import java.net.URI;
-import java.util.Locale;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
@@ -37,6 +38,13 @@ public interface KeycloakContext {
     URI getAuthServerUrl();
 
     String getContextPath();
+    
+     /**
+     * @deprecated Use {@link #getHttpRequest()} to obtain the request headers.
+     */
+    @Deprecated
+    HttpHeaders getRequestHeaders();
+    
 
     /**
      * Returns the URI assuming it is a frontend request. To resolve URI for a backend request use {@link #getUri(UrlType)}
@@ -54,8 +62,6 @@ public interface KeycloakContext {
      * @return
      */
     KeycloakUriInfo getUri(UrlType type);
-
-    HttpHeaders getRequestHeaders();
 
     /**
      * Will always return null. You should not need access to a general context object.
@@ -130,4 +136,10 @@ public interface KeycloakContext {
      * @return the {@link UserModel} bound to this context.
      */
     UserModel getUser();
+
+    /**
+     * Returns the permissions evaluator that can be used to check if the current user has permissions to perform an action on realm resources.
+     * @return the permissions evaluator
+     */
+    Permissions getPermissions();
 }

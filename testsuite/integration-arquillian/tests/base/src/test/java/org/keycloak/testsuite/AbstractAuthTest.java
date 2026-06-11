@@ -16,25 +16,26 @@
  */
 package org.keycloak.testsuite;
 
-import org.jboss.arquillian.graphene.page.Page;
-import org.junit.Before;
+import java.text.MessageFormat;
+import java.util.List;
+
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
-import org.keycloak.testsuite.admin.ApiUtil;
+import org.keycloak.testsuite.admin.AdminApiUtil;
 import org.keycloak.testsuite.auth.page.AuthRealm;
 import org.keycloak.testsuite.auth.page.login.OIDCLogin;
 import org.keycloak.testsuite.auth.page.login.SAMLPostLogin;
 import org.keycloak.testsuite.auth.page.login.SAMLRedirectLogin;
+
+import org.jboss.arquillian.graphene.page.Page;
+import org.junit.Before;
 import org.openqa.selenium.Cookie;
 
-import java.text.MessageFormat;
-import java.util.List;
-
 import static org.keycloak.representations.idm.CredentialRepresentation.PASSWORD;
-import static org.keycloak.testsuite.admin.ApiUtil.assignClientRoles;
-import static org.keycloak.testsuite.admin.ApiUtil.createUserAndResetPasswordWithAdminClient;
+import static org.keycloak.testsuite.admin.AdminApiUtil.assignClientRoles;
+import static org.keycloak.testsuite.admin.AdminApiUtil.createUserAndResetPasswordWithAdminClient;
 import static org.keycloak.testsuite.admin.Users.setPasswordFor;
 import static org.keycloak.testsuite.auth.page.AuthRealm.TEST;
 
@@ -98,7 +99,7 @@ public abstract class AbstractAuthTest extends AbstractKeycloakTest {
     }
 
     public void createTestUserWithAdminClient(boolean setRealmRoles, String password) {
-        ApiUtil.removeUserByUsername(testRealmResource(), "test");
+        AdminApiUtil.removeUserByUsername(testRealmResource(), "test");
 
         log.debug("creating test user");
         String id = createUserAndResetPasswordWithAdminClient(testRealmResource(), testUser, password);

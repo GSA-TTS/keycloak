@@ -16,9 +16,16 @@
  */
 package org.keycloak.testsuite.account.custom;
 
-import org.jboss.arquillian.graphene.page.Page;
-import org.junit.Before;
-import org.junit.Test;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.core.Response;
+
 import org.keycloak.admin.client.resource.UserProfileResource;
 import org.keycloak.authentication.authenticators.browser.OTPFormAuthenticatorFactory;
 import org.keycloak.models.AuthenticationExecutionModel.Requirement;
@@ -36,24 +43,13 @@ import org.keycloak.testsuite.pages.LoginConfigTotpPage;
 import org.keycloak.testsuite.pages.LoginTotpPage;
 import org.keycloak.testsuite.pages.PageUtils;
 import org.keycloak.testsuite.updaters.RealmAttributeUpdater;
-
-import jakarta.ws.rs.NotFoundException;
-import jakarta.ws.rs.core.Response;
 import org.keycloak.testsuite.util.AccountHelper;
 import org.keycloak.testsuite.util.userprofile.UserProfileUtil;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import org.jboss.arquillian.graphene.page.Page;
+import org.junit.Before;
+import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.keycloak.authentication.authenticators.browser.ConditionalOtpFormAuthenticator.DEFAULT_OTP_OUTCOME;
 import static org.keycloak.authentication.authenticators.browser.ConditionalOtpFormAuthenticator.FORCE;
 import static org.keycloak.authentication.authenticators.browser.ConditionalOtpFormAuthenticator.FORCE_OTP_FOR_HTTP_HEADER;
@@ -66,6 +62,12 @@ import static org.keycloak.models.UserModel.RequiredAction.CONFIGURE_TOTP;
 import static org.keycloak.representations.idm.CredentialRepresentation.PASSWORD;
 import static org.keycloak.testsuite.util.ServerURLs.AUTH_SERVER_PORT;
 import static org.keycloak.testsuite.util.URLAssert.assertCurrentUrlStartsWith;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  *
@@ -549,7 +551,7 @@ public class CustomAuthFlowOTPTest extends AbstractCustomAccountManagementTest {
         flow.setBuiltIn(false);
         
         try (Response response = getAuthMgmtResource().createFlow(flow)) {
-            assertEquals(flowAlias + " create success", 201, response.getStatus());
+            assertEquals(201, response.getStatus(), flowAlias + " create success");
         }
         
         //add execution - username-password form
@@ -584,7 +586,7 @@ public class CustomAuthFlowOTPTest extends AbstractCustomAccountManagementTest {
 
             //add auth config to the execution
             try (Response response = getAuthMgmtResource().newExecutionConfig(executionId, authConfig)) {
-                assertEquals("new execution success", 201, response.getStatus());
+                assertEquals(201, response.getStatus(), "new execution success");
                 getCleanup().addAuthenticationConfigId(ApiUtil.getCreatedId(response));
             }
         }

@@ -18,7 +18,6 @@
 package org.keycloak.protocol.oidc.endpoints;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +28,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
+
 import org.keycloak.OAuthErrorException;
 import org.keycloak.common.ClientConnection;
 import org.keycloak.common.util.Time;
@@ -43,7 +43,6 @@ import org.keycloak.models.ClientModel;
 import org.keycloak.models.Constants;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
-import org.keycloak.models.SingleUseObjectProvider;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.oidc.TokenManager;
@@ -55,6 +54,7 @@ import org.keycloak.services.clientpolicy.context.TokenRevokeContext;
 import org.keycloak.services.clientpolicy.context.TokenRevokeResponseContext;
 import org.keycloak.services.cors.Cors;
 import org.keycloak.services.managers.UserSessionManager;
+import org.keycloak.services.util.UserSessionUtil;
 import org.keycloak.util.TokenUtil;
 
 /**
@@ -102,7 +102,7 @@ public class TokenRevocationEndpoint {
         checkParameterDuplicated(formParams);
 
         try {
-            session.clientPolicy().triggerOnEvent(new TokenRevokeContext(formParams));
+            session.clientPolicy().triggerOnEvent(new TokenRevokeContext(client, formParams));
         } catch (ClientPolicyException cpe) {
             event.detail(Details.REASON, Details.CLIENT_POLICY_ERROR);
             event.detail(Details.CLIENT_POLICY_ERROR, cpe.getError());
@@ -129,7 +129,7 @@ public class TokenRevocationEndpoint {
         event.success();
 
         try {
-            session.clientPolicy().triggerOnEvent(new TokenRevokeResponseContext(formParams));
+            session.clientPolicy().triggerOnEvent(new TokenRevokeResponseContext(client, formParams));
         } catch (ClientPolicyException cpe) {
             event.detail(Details.REASON, Details.CLIENT_POLICY_ERROR);
             event.detail(Details.CLIENT_POLICY_ERROR, cpe.getError());
@@ -168,7 +168,7 @@ public class TokenRevocationEndpoint {
 
         event.client(client);
 
-        cors.allowedOrigins(session, client);
+        cors.checkAllowedOrigins(session, client);
 
         if (client.isBearerOnly()) {
             throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_CLIENT, "Bearer-only not allowed",
@@ -218,24 +218,14 @@ public class TokenRevocationEndpoint {
     }
 
     private void checkUser() {
-        if (token.getSessionState() == null) {
-            user = TokenManager.lookupUserFromStatelessToken(session, realm, token);
-        } else {
-            var userSessionProvider = session.sessions();
-            UserSessionModel userSession = userSessionProvider.getUserSessionIfClientExists(realm, token.getSessionId(), false, client.getId());
-
-            if (userSession == null) {
-                userSession = userSessionProvider.getUserSessionIfClientExists(realm, token.getSessionId(), true, client.getId());
-
-                if (userSession == null) {
-                    event.error(Errors.USER_SESSION_NOT_FOUND);
-                    throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_TOKEN, "Invalid token",
-                            Response.Status.OK);
-                }
-            }
-
-            user = userSession.getUser();
+        UserSessionUtil.UserSessionValidationResult validationResult = UserSessionUtil.findValidSessionForAccessToken(
+                session, realm, token, client, (UserSessionModel t) -> {});
+        if (validationResult.getError() != null) {
+            event.error(validationResult.getError());
+            throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_TOKEN, "Invalid token", Response.Status.OK);
         }
+
+        user = validationResult.getUserSession().getUser();
 
         if (user == null) {
             event.error(Errors.USER_NOT_FOUND);
@@ -246,8 +236,8 @@ public class TokenRevocationEndpoint {
     }
 
     private void checkParameterDuplicated(MultivaluedMap<String, String> formParams) {
-        for (String key : formParams.keySet()) {
-            if (formParams.get(key).size() != 1) {
+        for (List<String> strings : formParams.values()) {
+            if (strings.size() != 1) {
                 throw new CorsErrorResponseException(cors, Errors.INVALID_REQUEST, "duplicated parameter", Response.Status.BAD_REQUEST);
             }
         }
@@ -278,10 +268,9 @@ public class TokenRevocationEndpoint {
     }
 
     private void revokeAccessToken() {
-        SingleUseObjectProvider singleUseStore = session.singleUseObjects();
         int currentTime = Time.currentTime();
         long lifespanInSecs = Math.max(token.getExp() - currentTime + 1, 10);
-        singleUseStore.put(token.getId() + SingleUseObjectProvider.REVOKED_KEY, lifespanInSecs, Collections.emptyMap());
+        session.revokedTokens().put(token.getId(), lifespanInSecs);
         revokeTokenExchangeSession();
     }
 

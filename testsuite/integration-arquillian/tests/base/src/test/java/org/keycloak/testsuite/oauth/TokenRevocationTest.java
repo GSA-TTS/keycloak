@@ -17,14 +17,6 @@
 
 package org.keycloak.testsuite.oauth;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.keycloak.testsuite.AssertEvents.isUUID;
-import static org.keycloak.testsuite.admin.AbstractAdminTest.loadJson;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
@@ -36,10 +28,37 @@ import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Response.Status;
 
+import org.keycloak.OAuth2Constants;
+import org.keycloak.OAuthErrorException;
+import org.keycloak.admin.client.Keycloak;
+import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.admin.client.resource.UserResource;
+import org.keycloak.events.Details;
+import org.keycloak.events.EventType;
+import org.keycloak.http.simple.SimpleHttpRequest;
+import org.keycloak.representations.idm.OAuth2ErrorRepresentation;
+import org.keycloak.representations.idm.RealmRepresentation;
+import org.keycloak.representations.idm.UserSessionRepresentation;
+import org.keycloak.representations.oidc.TokenMetadataRepresentation;
+import org.keycloak.testframework.events.EventAssertion;
+import org.keycloak.testframework.realm.RealmBuilder;
+import org.keycloak.testsuite.AbstractKeycloakTest;
+import org.keycloak.testsuite.AssertEvents;
+import org.keycloak.testsuite.broker.util.SimpleHttpDefault;
+import org.keycloak.testsuite.events.TestEventsListenerProviderFactory;
+import org.keycloak.testsuite.pages.LoginPage;
+import org.keycloak.testsuite.util.AdminClientUtil;
+import org.keycloak.testsuite.util.ClientManager;
+import org.keycloak.testsuite.util.InfinispanTestTimeServiceRule;
+import org.keycloak.testsuite.util.UserInfoClientUtil;
+import org.keycloak.testsuite.util.oauth.AccessTokenResponse;
+import org.keycloak.testsuite.util.oauth.OAuthClient;
+import org.keycloak.util.JsonSerialization;
+import org.keycloak.util.TokenUtil;
+
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -49,34 +68,14 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.keycloak.OAuth2Constants;
-import org.keycloak.OAuthErrorException;
-import org.keycloak.admin.client.Keycloak;
-import org.keycloak.admin.client.resource.RealmResource;
-import org.keycloak.admin.client.resource.UserResource;
-import org.keycloak.broker.provider.util.SimpleHttp;
-import org.keycloak.events.Details;
-import org.keycloak.events.EventType;
-import org.keycloak.representations.idm.OAuth2ErrorRepresentation;
-import org.keycloak.representations.idm.RealmRepresentation;
-import org.keycloak.representations.idm.UserSessionRepresentation;
-import org.keycloak.representations.oidc.TokenMetadataRepresentation;
-import org.keycloak.testsuite.AbstractKeycloakTest;
-import org.keycloak.testsuite.Assert;
-import org.keycloak.testsuite.AssertEvents;
-import org.keycloak.testsuite.broker.util.SimpleHttpDefault;
-import org.keycloak.testsuite.pages.LoginPage;
-import org.keycloak.testsuite.util.AdminClientUtil;
-import org.keycloak.testsuite.util.ClientManager;
-import org.keycloak.testsuite.util.Matchers;
-import org.keycloak.testsuite.util.oauth.AuthorizationEndpointResponse;
-import org.keycloak.testsuite.util.oauth.OAuthClient;
-import org.keycloak.testsuite.util.oauth.AccessTokenResponse;
-import org.keycloak.testsuite.util.RealmBuilder;
-import org.keycloak.testsuite.util.UserInfoClientUtil;
-import org.keycloak.testsuite.util.InfinispanTestTimeServiceRule;
-import org.keycloak.util.JsonSerialization;
-import org.keycloak.util.TokenUtil;
+import org.junit.jupiter.api.Assertions;
+
+import static org.keycloak.testsuite.AbstractAdminTest.loadJson;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author <a href="mailto:yoshiyuki.tabata.jy@hitachi.com">Yoshiyuki Tabata</a>
@@ -103,7 +102,7 @@ public class TokenRevocationTest extends AbstractKeycloakTest {
     public void addTestRealms(List<RealmRepresentation> testRealms) {
         RealmRepresentation realmRepresentation = loadJson(getClass().getResourceAsStream("/testrealm.json"),
             RealmRepresentation.class);
-        RealmBuilder realm = RealmBuilder.edit(realmRepresentation).testEventListener();
+        RealmBuilder realm = RealmBuilder.update(realmRepresentation).eventsListeners(TestEventsListenerProviderFactory.PROVIDER_ID);
 
         testRealms.add(realm.build());
     }
@@ -186,11 +185,11 @@ public class TokenRevocationTest extends AbstractKeycloakTest {
 
         assertTrue(oauth.tokenRevocationRequest(tokenResponse.getAccessToken()).accessToken().send().isSuccess());
 
-        setTimeOffset(adminClient.realm(oauth.getRealm()).toRepresentation().getAccessTokenLifespan());
+        timeOffSet.set(adminClient.realm(oauth.getRealm()).toRepresentation().getAccessTokenLifespan());
 
         isAccessTokenDisabled(tokenResponse.getAccessToken(), "test-app");
 
-        setTimeOffset(0);
+        timeOffSet.set(0);
     }
 
     @Test
@@ -216,7 +215,7 @@ public class TokenRevocationTest extends AbstractKeycloakTest {
         AccessTokenResponse tokenResponse2 = login("test-app", "test-user@localhost", "password");
 
         // Session IDs of "offline" and online session are same for now. This may change in the future
-        Assert.assertEquals(tokenResponse1.getSessionState(), tokenResponse2.getSessionState());
+        Assertions.assertEquals(tokenResponse1.getSessionState(), tokenResponse2.getSessionState());
 
         isTokenEnabled(tokenResponse2, "test-app");
 
@@ -320,12 +319,12 @@ public class TokenRevocationTest extends AbstractKeycloakTest {
 
         assertTrue(oauth.tokenRevocationRequest(tokenResponse.getRefreshToken()).refreshToken().send().isSuccess());
 
-        events.expect(EventType.REVOKE_GRANT)
-                .session(tokenResponse.getSessionState())
-                .detail(Details.REFRESH_TOKEN_ID, isUUID())
-                .detail(Details.REFRESH_TOKEN_TYPE, expectedTokenType)
-                .client("test-app")
-                .assertEvent(true);
+        events.skip(6);
+        EventAssertion.assertSuccess(events.poll()).type(EventType.REVOKE_GRANT)
+                .sessionId(tokenResponse.getSessionState())
+                .hasTokenId(Details.REFRESH_TOKEN_ID)
+                .details(Details.REFRESH_TOKEN_TYPE, expectedTokenType)
+                .clientId("test-app");
 
         isTokenDisabled(tokenResponse, "test-app");
         isTokenEnabled(tokenResponse2, "test-app");
@@ -370,7 +369,7 @@ public class TokenRevocationTest extends AbstractKeycloakTest {
 
         // Test account REST not possible
         String accountUrl = OAuthClient.AUTH_SERVER_ROOT + "/realms/test/account";
-        SimpleHttp accountRequest = SimpleHttpDefault.doGet(accountUrl, restHttpClient)
+        SimpleHttpRequest accountRequest = SimpleHttpDefault.doGet(accountUrl, restHttpClient)
                 .auth(accessTokenString)
                 .acceptJson();
         assertEquals(Status.UNAUTHORIZED.getStatusCode(), accountRequest.asStatus());
@@ -379,7 +378,7 @@ public class TokenRevocationTest extends AbstractKeycloakTest {
         try (Keycloak adminClient = Keycloak.getInstance(OAuthClient.AUTH_SERVER_ROOT, "test", "test-app", accessTokenString, AdminClientUtil.getSSLContextWithTruststore())) {
             try {
                 adminClient.realms().realm("test").toRepresentation();
-                Assert.fail("Not expected to obtain realm");
+                Assertions.fail("Not expected to obtain realm");
             } catch (NotAuthorizedException nae) {
                 // Expected
             }

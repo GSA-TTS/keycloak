@@ -16,8 +16,18 @@
  */
 package org.keycloak.storage.jpa;
 
-import org.jboss.logging.Logger;
-import org.keycloak.common.util.Base64;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.TypedQuery;
+
 import org.keycloak.common.util.MultivaluedHashMap;
 import org.keycloak.common.util.Time;
 import org.keycloak.component.ComponentModel;
@@ -53,15 +63,7 @@ import org.keycloak.storage.jpa.entity.FederatedUserRequiredActionEntity;
 import org.keycloak.storage.jpa.entity.FederatedUserRequiredActionEntity.Key;
 import org.keycloak.storage.jpa.entity.FederatedUserRoleMappingEntity;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.TypedQuery;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import jakarta.persistence.LockModeType;
+import org.jboss.logging.Logger;
 
 import static org.keycloak.models.jpa.PaginationUtils.paginateQuery;
 import static org.keycloak.utils.StreamsUtil.closing;
@@ -383,7 +385,10 @@ public class JpaUserFederatedStorageProvider implements
                     grantedClientScopeModel = realm.getClientById(grantedClientScope.getScopeId());
                 }
                 if (grantedClientScopeModel != null) {
-                    model.addGrantedClientScope(grantedClientScopeModel);
+                    model.addGrantedClientScope(grantedClientScopeModel,
+                            ClientScopeModel.isParameterizedScope(grantedClientScopeModel)
+                                    ? grantedClientScope.getParameter().orElse(null)
+                                    : null);
                 }
             }
         }
@@ -397,17 +402,11 @@ public class JpaUserFederatedStorageProvider implements
         Collection<FederatedUserConsentClientScopeEntity> scopesToRemove = new HashSet<>(grantedClientScopeEntities);
 
         for (ClientScopeModel clientScope : consentModel.getGrantedClientScopes()) {
-            FederatedUserConsentClientScopeEntity grantedClientScopeEntity = new FederatedUserConsentClientScopeEntity();
-            grantedClientScopeEntity.setUserConsent(consentEntity);
-            grantedClientScopeEntity.setScopeId(clientScope.getId());
-
-            // Check if it's already there
-            if (!grantedClientScopeEntities.contains(grantedClientScopeEntity)) {
-                em.persist(grantedClientScopeEntity);
-                em.flush();
-                grantedClientScopeEntities.add(grantedClientScopeEntity);
+            if (ClientScopeModel.isParameterizedScope(clientScope)) {
+                consentModel.getParameters(clientScope).forEach(p -> createFederatedUserConsentClientScopeEntity(
+                        consentEntity, clientScope, p, grantedClientScopeEntities, scopesToRemove));
             } else {
-                scopesToRemove.remove(grantedClientScopeEntity);
+                createFederatedUserConsentClientScopeEntity(consentEntity, clientScope, null, grantedClientScopeEntities, scopesToRemove);
             }
         }
         // Those mappers were no longer on consentModel and will be removed
@@ -421,6 +420,24 @@ public class JpaUserFederatedStorageProvider implements
         em.flush();
     }
 
+    private void createFederatedUserConsentClientScopeEntity(
+            FederatedUserConsentEntity consentEntity, ClientScopeModel clientScope, String parameter,
+            Collection<FederatedUserConsentClientScopeEntity> grantedClientScopeEntities,
+            Collection<FederatedUserConsentClientScopeEntity> scopesToRemove) {
+        FederatedUserConsentClientScopeEntity grantedClientScopeEntity = new FederatedUserConsentClientScopeEntity();
+        grantedClientScopeEntity.setUserConsent(consentEntity);
+        grantedClientScopeEntity.setScopeId(clientScope.getId());
+        grantedClientScopeEntity.setParameter(parameter);
+
+        // Check if it's already there
+        if (!grantedClientScopeEntities.contains(grantedClientScopeEntity)) {
+            em.persist(grantedClientScopeEntity);
+            em.flush();
+            grantedClientScopeEntities.add(grantedClientScopeEntity);
+        } else {
+            scopesToRemove.remove(grantedClientScopeEntity);
+        }
+    }
 
     @Override
     public void setNotBeforeForUser(RealmModel realm, String userId, int notBefore) {
@@ -652,7 +669,7 @@ public class JpaUserFederatedStorageProvider implements
         // Backwards compatibility - users from previous version still have "salt" in the DB filled.
         // We migrate it to new secretData format on-the-fly
         if (entity.getSalt() != null) {
-            String newSecretData = entity.getSecretData().replace("__SALT__", Base64.encodeBytes(entity.getSalt()));
+            String newSecretData = entity.getSecretData().replace("__SALT__", Base64.getEncoder().encodeToString(entity.getSalt()));
             entity.setSecretData(newSecretData);
             entity.setSalt(null);
         }

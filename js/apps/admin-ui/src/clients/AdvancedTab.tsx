@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { ScrollForm } from "@keycloak/keycloak-ui-shared";
 import type { AddAlertFunction } from "@keycloak/keycloak-ui-shared";
 import { convertAttributeNameToForm, toUpperCase } from "../util";
+import useIsFeatureEnabled, { Feature } from "../utils/useIsFeatureEnabled";
 import type { FormFields, SaveOptions } from "./ClientDetails";
 import { AdvancedSettings } from "./advanced/AdvancedSettings";
 import { AuthenticationOverrides } from "./advanced/AuthenticationOverrides";
@@ -15,10 +16,8 @@ import { FineGrainOpenIdConnect } from "./advanced/FineGrainOpenIdConnect";
 import { FineGrainSamlEndpointConfig } from "./advanced/FineGrainSamlEndpointConfig";
 import { OpenIdConnectCompatibilityModes } from "./advanced/OpenIdConnectCompatibilityModes";
 import { OpenIdVerifiableCredentials } from "./advanced/OpenIdVerifiableCredentials";
-import useIsFeatureEnabled, { Feature } from "../utils/useIsFeatureEnabled";
-
-const PROTOCOL_OIDC = "openid-connect";
-const PROTOCOL_OID4VC = "oid4vc";
+import { useRealm } from "../context/realm-context/RealmContext";
+import { PROTOCOL_OIDC } from "./constants";
 
 export const parseResult = (
   result: GlobalRequestResult,
@@ -55,6 +54,7 @@ export type AdvancedProps = {
 
 export const AdvancedTab = ({ save, client }: AdvancedProps) => {
   const { t } = useTranslation();
+  const { realmRepresentation } = useRealm();
   const isFeatureEnabled = useIsFeatureEnabled();
 
   const { setValue } = useFormContext();
@@ -104,6 +104,7 @@ export const AdvancedTab = ({ save, client }: AdvancedProps) => {
                       "id.token.signed.response.alg",
                       "id.token.encrypted.response.alg",
                       "id.token.encrypted.response.enc",
+                      "id.token.as.detached.signature",
                       "user.info.response.signature.alg",
                       "user.info.encrypted.response.alg",
                       "user.info.encrypted.response.enc",
@@ -137,6 +138,7 @@ export const AdvancedTab = ({ save, client }: AdvancedProps) => {
                       "use.refresh.tokens",
                       "client_credentials.use_refresh_token",
                       "token.response.type.bearer.lower-case",
+                      "oauth2.jwt.authorization.grant.audience",
                     ])
                   }
                 />
@@ -207,8 +209,9 @@ export const AdvancedTab = ({ save, client }: AdvancedProps) => {
           {
             title: t("openIdVerifiableCredentials"),
             isHidden:
-              (protocol !== PROTOCOL_OIDC && protocol !== PROTOCOL_OID4VC) ||
-              !isFeatureEnabled(Feature.OpenId4VCI),
+              protocol !== PROTOCOL_OIDC ||
+              !isFeatureEnabled(Feature.OpenId4VCI) ||
+              !realmRepresentation.verifiableCredentialsEnabled,
             panel: (
               <>
                 <Text className="pf-v5-u-pb-lg">

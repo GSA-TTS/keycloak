@@ -16,10 +16,11 @@
  */
 package org.keycloak.testsuite.account.custom;
 
-import org.junit.Test;
 import org.keycloak.models.AuthenticationExecutionModel.Requirement;
 
-import static org.junit.Assert.assertEquals;
+import org.junit.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 
 /**

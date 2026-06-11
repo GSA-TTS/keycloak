@@ -17,17 +17,16 @@
 
 package org.keycloak.testsuite.forms;
 
-import org.jboss.arquillian.graphene.page.Page;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.keycloak.authentication.authenticators.browser.UsernamePasswordFormFactory;
 import org.keycloak.events.Details;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.AuthenticationFlowModel;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.RealmModel;
+import org.keycloak.testframework.events.EventAssertion;
 import org.keycloak.testsuite.AbstractChangeImportedUserPasswordsTest;
 import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.authentication.ExpectedParamAuthenticator;
@@ -37,10 +36,13 @@ import org.keycloak.testsuite.pages.AppPage;
 import org.keycloak.testsuite.pages.ErrorPage;
 import org.keycloak.testsuite.pages.LoginPage;
 import org.keycloak.testsuite.util.UIUtils;
-import org.openqa.selenium.By;
 
-import java.util.HashMap;
-import java.util.Map;
+import org.jboss.arquillian.graphene.page.Page;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.openqa.selenium.By;
 
 
 /**
@@ -268,7 +270,7 @@ public class AuthenticatorSubflowsTest extends AbstractChangeImportedUserPasswor
         oauth.fillLoginForm("test-user@localhost", getPassword("test-user@localhost"));
         appPage.assertCurrent();
 
-        events.expectLogin().detail(Details.USERNAME, "test-user@localhost").assertEvent();
+        EventAssertion.expectLoginSuccess(events.poll()).details(Details.USERNAME, "test-user@localhost");
     }
 
 
@@ -277,7 +279,7 @@ public class AuthenticatorSubflowsTest extends AbstractChangeImportedUserPasswor
         // Don't add 'foo' parameter. I am redirected to subflow2 - push the button
         oauth.loginForm().open();
 
-        Assert.assertEquals("PushTheButton", driver.getTitle());
+        Assertions.assertEquals("PushTheButton", driver.getTitle());
 
         // Push the button. I am redirected to username+password form
         UIUtils.clickLink(driver.findElement(By.name("submit1")));
@@ -289,7 +291,7 @@ public class AuthenticatorSubflowsTest extends AbstractChangeImportedUserPasswor
         oauth.fillLoginForm("test-user@localhost", getPassword("test-user@localhost"));
         appPage.assertCurrent();
 
-        events.expectLogin().detail(Details.USERNAME, "test-user@localhost").assertEvent();
+        EventAssertion.expectLoginSuccess(events.poll()).details(Details.USERNAME, "test-user@localhost");
     }
 
 
@@ -310,7 +312,7 @@ public class AuthenticatorSubflowsTest extends AbstractChangeImportedUserPasswor
 //
 //        appPage.assertCurrent();
 //
-//        events.expectLogin().detail(Details.USERNAME, "john-doh@localhost").assertEvent();
+//        EventAssertion.expectLoginSuccessWithSessionAndDetails(events.poll()).details(Details.USERNAME, "john-doh@localhost").assertEvent();
 //    }
 //
 //

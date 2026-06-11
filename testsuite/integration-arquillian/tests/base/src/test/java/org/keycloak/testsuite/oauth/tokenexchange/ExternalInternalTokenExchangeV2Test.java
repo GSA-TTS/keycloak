@@ -21,7 +21,6 @@ package org.keycloak.testsuite.oauth.tokenexchange;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,13 +32,11 @@ import jakarta.ws.rs.client.WebTarget;
 import jakarta.ws.rs.core.Form;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
-import org.junit.Test;
+
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.resource.ClientsResource;
 import org.keycloak.admin.client.resource.IdentityProviderResource;
 import org.keycloak.admin.client.resource.RealmResource;
-import org.keycloak.authorization.model.Policy;
-import org.keycloak.authorization.model.ResourceServer;
 import org.keycloak.common.Profile;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.IdentityProviderModel;
@@ -63,17 +60,21 @@ import org.keycloak.testsuite.util.AdminClientUtil;
 import org.keycloak.testsuite.util.oauth.OAuthClient;
 import org.keycloak.util.BasicAuthHelper;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assert.assertEquals;
-import static org.keycloak.broker.oidc.OAuth2IdentityProviderConfig.TOKEN_INTROSPECTION_URL;
+import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+
 import static org.keycloak.broker.oidc.OAuth2IdentityProviderConfig.TOKEN_ENDPOINT_URL;
+import static org.keycloak.broker.oidc.OAuth2IdentityProviderConfig.TOKEN_INTROSPECTION_URL;
 import static org.keycloak.testsuite.broker.BrokerTestConstants.CLIENT_ID;
 import static org.keycloak.testsuite.broker.BrokerTestConstants.IDP_OIDC_ALIAS;
 import static org.keycloak.testsuite.broker.BrokerTestConstants.REALM_CONS_NAME;
 import static org.keycloak.testsuite.broker.BrokerTestTools.getProviderRoot;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Test for external-internal token exchange using token_exchange_external_internal:v2
@@ -101,20 +102,22 @@ public class ExternalInternalTokenExchangeV2Test extends AbstractInitializedBase
                         .findFirst().get();
                 brokerApp.setDirectAccessGrantsEnabled(true);
 
-                ClientRepresentation client2 = createProviderClientWithAudienceMapper("client-with-brokerapp-audience", CLIENT_ID);
-                ClientRepresentation client3 = createProviderClientWithAudienceMapper("client-with-consumer-realm-issuer-audience", getProviderRoot() + "/auth/realms/" + REALM_CONS_NAME);
-                ClientRepresentation client4 = createProviderClientWithAudienceMapper("client-without-valid-audience", "some-random-audience");
+                ClientRepresentation client2 = createProviderClientWithAudienceMapper("client-with-brokerapp-audience", CLIENT_ID, true);
+                ClientRepresentation client3 = createProviderClientWithAudienceMapper("client-with-consumer-realm-issuer-audience", getProviderRoot() + "/auth/realms/" + REALM_CONS_NAME, true);
+                ClientRepresentation client4 = createProviderClientWithAudienceMapper("client-without-valid-audience", "some-random-audience", false);
 
                 providerClients = new ArrayList<>(providerClients);
                 providerClients.addAll(Arrays.asList(client2, client3, client4));
                 return providerClients;
             }
 
-            private ClientRepresentation createProviderClientWithAudienceMapper(String clientId, String hardcodedAudience) {
+            private ClientRepresentation createProviderClientWithAudienceMapper(String clientId, String hardcodedAudience, boolean includeBrokerapp) {
                 ClientRepresentation client = new ClientRepresentation();
                 client.setClientId(clientId);
                 client.setSecret("secret");
                 client.setDirectAccessGrantsEnabled(true);
+
+                List<ProtocolMapperRepresentation> mappers = new ArrayList<>();
 
                 ProtocolMapperRepresentation hardcodedAudienceMapper = new ProtocolMapperRepresentation();
                 hardcodedAudienceMapper.setName("audience");
@@ -124,8 +127,33 @@ public class ExternalInternalTokenExchangeV2Test extends AbstractInitializedBase
                 Map<String, String> hardcodedAudienceMapperConfig = hardcodedAudienceMapper.getConfig();
                 hardcodedAudienceMapperConfig.put(AudienceProtocolMapper.INCLUDED_CUSTOM_AUDIENCE, hardcodedAudience);
                 hardcodedAudienceMapperConfig.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, "true");
+                mappers.add(hardcodedAudienceMapper);
 
-                client.setProtocolMappers(Collections.singletonList(hardcodedAudienceMapper));
+                // Add mapper so the client can introspect its own tokens
+                ProtocolMapperRepresentation selfAudienceMapper = new ProtocolMapperRepresentation();
+                selfAudienceMapper.setName("audience-self");
+                selfAudienceMapper.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
+                selfAudienceMapper.setProtocolMapper(AudienceProtocolMapper.PROVIDER_ID);
+
+                Map<String, String> selfAudienceMapperConfig = selfAudienceMapper.getConfig();
+                selfAudienceMapperConfig.put(AudienceProtocolMapper.INCLUDED_CUSTOM_AUDIENCE, clientId);
+                selfAudienceMapperConfig.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, "true");
+                mappers.add(selfAudienceMapper);
+
+                // Add mapper for brokerapp to allow introspection during token exchange (only if requested)
+                if (includeBrokerapp) {
+                    ProtocolMapperRepresentation brokerappAudienceMapper = new ProtocolMapperRepresentation();
+                    brokerappAudienceMapper.setName("audience-brokerapp");
+                    brokerappAudienceMapper.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
+                    brokerappAudienceMapper.setProtocolMapper(AudienceProtocolMapper.PROVIDER_ID);
+
+                    Map<String, String> brokerappAudienceMapperConfig = brokerappAudienceMapper.getConfig();
+                    brokerappAudienceMapperConfig.put(AudienceProtocolMapper.INCLUDED_CUSTOM_AUDIENCE, CLIENT_ID);
+                    brokerappAudienceMapperConfig.put(OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, "true");
+                    mappers.add(brokerappAudienceMapper);
+                }
+
+                client.setProtocolMappers(mappers);
                 return client;
             }
 
@@ -135,7 +163,7 @@ public class ExternalInternalTokenExchangeV2Test extends AbstractInitializedBase
     private static void setupRealm(KeycloakSession session) {
         RealmModel realm = session.getContext().getRealm();
         IdentityProviderModel idp = session.identityProviders().getByAlias(IDP_OIDC_ALIAS);
-        org.junit.Assert.assertNotNull(idp);
+        Assertions.assertNotNull(idp);
 
         ClientModel client = realm.addClient("test-app");
         client.setClientId("test-app");
@@ -208,6 +236,7 @@ public class ExternalInternalTokenExchangeV2Test extends AbstractInitializedBase
     @Test
     public void testFailure_externalTokenIssuedToInvalidClient() throws Exception {
         // Send initial direct-grant request. Token is issued to the "client-without-valid-audience". This external token will fail token-exchange as token is not issued to brokerapp and there is not any valid audience available
+        // With audience validation, introspection will fail because brokerapp is not in the token's audience, returning "Token not active"
         org.keycloak.testsuite.util.oauth.AccessTokenResponse tokenResponse = oauth.realm(bc.providerRealmName()).client("client-without-valid-audience", "secret").doPasswordGrantRequest(bc.getUserLogin(), bc.getUserPassword());
         assertThat(tokenResponse.getIdToken(), notNullValue());
 
@@ -217,7 +246,7 @@ public class ExternalInternalTokenExchangeV2Test extends AbstractInitializedBase
             assertThat(tokenExchangeResponse.getStatus(), equalTo(400));
             AccessTokenResponse externalToInternalTokenResponse = tokenExchangeResponse.readEntity(AccessTokenResponse.class);
             assertThat(externalToInternalTokenResponse.getToken(), nullValue());
-            assertEquals("Token not authorized for token exchange", externalToInternalTokenResponse.getErrorDescription());
+            assertEquals("Token not active", externalToInternalTokenResponse.getErrorDescription());
         });
     }
 
@@ -259,7 +288,7 @@ public class ExternalInternalTokenExchangeV2Test extends AbstractInitializedBase
 
         testingClient.server(BrokerTestConstants.REALM_CONS_NAME).run(ExternalInternalTokenExchangeV2Test::setupRealm);
 
-        setTimeOffset(3600);
+        timeOffSet.set(3600);
 
         testTokenExchange(tokenResponse.getAccessToken(), (tokenExchangeResponse) -> {
             assertThat(tokenExchangeResponse.getStatus(), equalTo(400));

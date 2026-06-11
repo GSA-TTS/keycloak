@@ -17,7 +17,16 @@
 
 package org.keycloak.storage.ldap;
 
-import org.jboss.logging.Logger;
+import java.net.URI;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.naming.NamingException;
+import javax.naming.spi.NamingManager;
+
 import org.keycloak.Config;
 import org.keycloak.common.constants.KerberosConstants;
 import org.keycloak.component.ComponentModel;
@@ -66,12 +75,7 @@ import org.keycloak.storage.user.ImportSynchronization;
 import org.keycloak.storage.user.SynchronizationResult;
 import org.keycloak.utils.CredentialHelper;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import org.jboss.logging.Logger;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
@@ -84,6 +88,8 @@ public class LDAPStorageProviderFactory implements UserStorageProviderFactory<LD
     private static final Logger logger = Logger.getLogger(LDAPStorageProviderFactory.class);
     public static final String PROVIDER_NAME = LDAPConstants.LDAP_PROVIDER;
     private static final String LDAP_CONNECTION_POOL_PROTOCOL = "com.sun.jndi.ldap.connect.pool.protocol";
+    private static final String SECURE_REFERRAL = "secureReferral";
+    private static final boolean SECURE_REFERRAL_DEFAULT = true;
 
     private LDAPIdentityStoreRegistry ldapStoreRegistry;
 
@@ -218,6 +224,10 @@ public class LDAPStorageProviderFactory implements UserStorageProviderFactory<LD
                 .type(ProviderConfigProperty.BOOLEAN_TYPE)
                 .defaultValue("false")
                 .add()
+                .property().name(LDAPConstants.ENABLE_LDAP_PASSWORD_POLICY)
+                .type(ProviderConfigProperty.BOOLEAN_TYPE)
+                .defaultValue("false")
+                .add()
                 .build();
     }
 
@@ -272,6 +282,24 @@ public class LDAPStorageProviderFactory implements UserStorageProviderFactory<LD
             }
         }
 
+        String connectionUrl = cfg.getConnectionUrl();
+        if (connectionUrl != null) {
+            if (connectionUrl.contains(",")) {
+                throw new ComponentValidationException("ldapErrorConnectionUrlContainsComma");
+            }
+            for (String url : LDAPConstants.toLdapUrls(connectionUrl)) {
+                try {
+                    URI uri = URI.create(url);
+                    String scheme = uri.getScheme();
+                    if (scheme == null || !(scheme.equalsIgnoreCase("ldap") || scheme.equalsIgnoreCase("ldaps"))) {
+                        throw new ComponentValidationException("ldapErrorInvalidConnectionUrlScheme");
+                    }
+                } catch (IllegalArgumentException e) {
+                    throw new ComponentValidationException("ldapErrorInvalidConnectionUrl");
+                }
+            }
+        }
+
         // This parses the configuration directly as cfg.getConnectionPooling() will take into account the current StartTLS setting
         if(cfg.isStartTls() && Boolean.parseBoolean(config.getConfig().getFirst(LDAPConstants.CONNECTION_POOLING))) {
             throw new ComponentValidationException("ldapErrorCantEnableStartTlsAndConnectionPooling");
@@ -301,11 +329,34 @@ public class LDAPStorageProviderFactory implements UserStorageProviderFactory<LD
 
     @Override
     public void init(Config.Scope config) {
+        if (config.getBoolean(SECURE_REFERRAL, SECURE_REFERRAL_DEFAULT)) {
+            setObjectFactoryBuilder();
+        } else {
+            logger.warnf("Insecure LDAP referrals are enabled. The option 'secure-referral' is deprecated and it will be removed in future releases.");
+        }
+
         // set connection pooling for plain and tls protocols by default
         if (System.getProperty(LDAP_CONNECTION_POOL_PROTOCOL) == null) {
             System.setProperty(LDAP_CONNECTION_POOL_PROTOCOL, "plain ssl");
         }
+
         this.ldapStoreRegistry = new LDAPIdentityStoreRegistry();
+    }
+
+    @Override
+    public List<ProviderConfigProperty> getConfigMetadata() {
+
+        ProviderConfigurationBuilder builder = ProviderConfigurationBuilder.create();
+
+        builder.property()
+                .name(SECURE_REFERRAL)
+                .type("boolean")
+                .helpText("Allow only secure LDAP referrals (deprecated)")
+                .defaultValue(SECURE_REFERRAL_DEFAULT)
+                .add();
+
+        return builder.build();
+
     }
 
     @Override
@@ -727,4 +778,15 @@ public class LDAPStorageProviderFactory implements UserStorageProviderFactory<LD
         return new KerberosUsernamePasswordAuthenticator(kerberosConfig);
     }
 
+    private void setObjectFactoryBuilder() {
+        try {
+            NamingManager.setObjectFactoryBuilder(new ObjectFactoryBuilder());
+        } catch (NamingException | IllegalStateException e) {
+            if (e instanceof IllegalStateException && ObjectFactoryBuilder.isSet()) {
+                return;
+            }
+
+            throw new RuntimeException("Failed to set the server JNDI ObjectFactoryBuilder", e);
+        }
+    }
  }

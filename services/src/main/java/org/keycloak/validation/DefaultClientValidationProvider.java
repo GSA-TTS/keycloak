@@ -16,27 +16,10 @@
  */
 package org.keycloak.validation;
 
-import org.keycloak.authentication.authenticators.util.LoAUtil;
-import org.keycloak.models.ClientModel;
-import org.keycloak.protocol.ProtocolMapperConfigException;
-import org.keycloak.protocol.oidc.OIDCAdvancedConfigWrapper;
-import org.keycloak.protocol.oidc.OIDCConfigAttributes;
-import org.keycloak.protocol.oidc.grants.ciba.CibaClientValidation;
-import org.keycloak.protocol.oidc.mappers.PairwiseSubMapperHelper;
-import org.keycloak.protocol.oidc.utils.AcrUtils;
-import org.keycloak.protocol.oidc.utils.PairwiseSubMapperUtils;
-import org.keycloak.protocol.oidc.utils.PairwiseSubMapperValidator;
-import org.keycloak.protocol.oidc.utils.SubjectType;
-import org.keycloak.protocol.saml.SamlProtocol;
-import org.keycloak.representations.idm.ProtocolMapperRepresentation;
-import org.keycloak.representations.oidc.OIDCClientRepresentation;
-import org.keycloak.services.util.ResolveRelative;
-import org.keycloak.services.validation.Validation;
-
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
-
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
@@ -44,9 +27,39 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.keycloak.authentication.authenticators.client.X509ClientAuthenticator;
+import org.keycloak.authentication.authenticators.util.LoAUtil;
+import org.keycloak.models.ClientModel;
+import org.keycloak.models.Constants;
+import org.keycloak.models.RealmModel;
+import org.keycloak.protocol.LoginProtocol;
+import org.keycloak.protocol.LoginProtocolFactory;
+import org.keycloak.protocol.ProtocolMapperConfigException;
+import org.keycloak.protocol.oidc.OIDCAdvancedConfigWrapper;
+import org.keycloak.protocol.oidc.OIDCConfigAttributes;
+import org.keycloak.protocol.oidc.OIDCLoginProtocol;
+import org.keycloak.protocol.oidc.grants.ciba.CibaClientValidation;
+import org.keycloak.protocol.oidc.mappers.PairwiseSubMapperHelper;
+import org.keycloak.protocol.oidc.utils.AcrUtils;
+import org.keycloak.protocol.oidc.utils.PairwiseSubMapperUtils;
+import org.keycloak.protocol.oidc.utils.PairwiseSubMapperValidator;
+import org.keycloak.protocol.oidc.utils.SubjectType;
+import org.keycloak.protocol.saml.SamlConfigAttributes;
+import org.keycloak.protocol.saml.SamlProtocol;
+import org.keycloak.representations.idm.ProtocolMapperRepresentation;
+import org.keycloak.representations.oidc.OIDCClientRepresentation;
+import org.keycloak.services.messages.Messages;
+import org.keycloak.services.util.ResolveRelative;
+import org.keycloak.utils.StringUtil;
+
+import org.jboss.logging.Logger;
+
 import static org.keycloak.models.utils.ModelToRepresentation.toRepresentation;
 
 public class DefaultClientValidationProvider implements ClientValidationProvider {
+
+    private static final Logger logger = Logger.getLogger(DefaultClientValidationProvider.class);
+
     private enum FieldMessages {
         ROOT_URL("rootUrl",
                 "Root URL is not a valid URL", "clientRootURLInvalid",
@@ -126,7 +139,12 @@ public class DefaultClientValidationProvider implements ClientValidationProvider
         SAML_ARTIFACT_RESOLUTION_SERVICE_URL_URI(SamlProtocol.SAML_ARTIFACT_RESOLUTION_SERVICE_URL_ATTRIBUTE,
                 "Artifact Resolution Service is not a valid URL", "samlAssertionConsumerUrlPostURLInvalid",
                 null, null,
-                "Artifact Resolution Service uses an illegal scheme", "samlAssertionConsumerUrlPostURLIllegalSchemeError");
+                "Artifact Resolution Service uses an illegal scheme", "samlAssertionConsumerUrlPostURLIllegalSchemeError"),
+
+        SAML_METADATA_DESCRIPTOR_URL(SamlConfigAttributes.SAML_METADATA_DESCRIPTOR_URL,
+                "Metadata descriptor URL is not a valid URL", SamlConfigAttributes.SAML_METADATA_DESCRIPTOR_URL,
+                null, null,
+                "Metadata descriptor URL uses an illegal scheme", SamlConfigAttributes.SAML_METADATA_DESCRIPTOR_URL);
 
         private String fieldId;
 
@@ -181,29 +199,66 @@ public class DefaultClientValidationProvider implements ClientValidationProvider
     // TODO Before adding more validation consider using a library for validation
     @Override
     public ValidationResult validate(ValidationContext<ClientModel> context) {
+        validateClientId(context);
+        validateProtocol(context);
         validateUrls(context);
         validatePairwiseInClientModel(context);
         new CibaClientValidation(context).validate();
         validateJwks(context);
+        validateAcrLoaMap(context);
         validateDefaultAcrValues(context);
         validateMinimumAcrValue(context);
+        validateClientSessionTimeout(context);
+        validateX509Credentials(context);
 
         return context.toResult();
     }
 
     @Override
     public ValidationResult validate(ClientValidationContext.OIDCContext context) {
+        validateClientId(context);
+        validateProtocol(context);
         validateUrls(context);
         validatePairwiseInOIDCClient(context);
         new CibaClientValidation(context).validate();
+        validateAcrLoaMap(context);
         validateDefaultAcrValues(context);
         validateMinimumAcrValue(context);
-
+        //context.getSession().getContext().getRealm().
         return context.toResult();
+    }
+
+    private void validateClientId(ValidationContext<ClientModel> context) {
+        ClientModel client = context.getObjectToValidate();
+        if (StringUtil.isBlank(client.getClientId())) {
+            context.addError("Client ID cannot be blank");
+        }
+    }
+
+    private void validateProtocol(ValidationContext<ClientModel> context) {
+        ClientModel client = context.getObjectToValidate();
+        String protocol = client.getProtocol();
+
+        // null protocol is allowed
+        if (protocol == null) {
+            return;
+        }
+
+        LoginProtocolFactory factory = (LoginProtocolFactory) context.getSession().getKeycloakSessionFactory().getProviderFactory(LoginProtocol.class, protocol);
+
+        if (factory == null) {
+            context.addError("protocol", "Invalid protocol: " + protocol);
+            return;
+        }
+
+        if (!factory.allowAsClientProtocol()) {
+            context.addError("protocol", "Protocol '" + protocol + "' cannot be used as a client protocol");
+        }
     }
 
     private void validateUrls(ValidationContext<ClientModel> context) {
         ClientModel client = context.getObjectToValidate();
+
 
         // Use a fake URL for validating relative URLs as we may not be validating clients in the context of a request (import at startup)
         String authServerUrl = "https://localhost/auth";
@@ -238,6 +293,7 @@ public class DefaultClientValidationProvider implements ClientValidationProvider
             checkUri(FieldMessages.SAML_SINGLE_LOGOUT_SERVICE_URL_REDIRECT_URI, client.getAttribute(SamlProtocol.SAML_SINGLE_LOGOUT_SERVICE_URL_REDIRECT_ATTRIBUTE), context, true, false);
             checkUri(FieldMessages.SAML_SINGLE_LOGOUT_SERVICE_URL_SOAP_URI, client.getAttribute(SamlProtocol.SAML_SINGLE_LOGOUT_SERVICE_URL_SOAP_ATTRIBUTE), context, true, false);
             checkUri(FieldMessages.SAML_ARTIFACT_RESOLUTION_SERVICE_URL_URI, client.getAttribute(SamlProtocol.SAML_ARTIFACT_RESOLUTION_SERVICE_URL_ATTRIBUTE), context, true, false);
+            checkUri(FieldMessages.SAML_METADATA_DESCRIPTOR_URL, client.getAttribute(SamlConfigAttributes.SAML_METADATA_DESCRIPTOR_URL), context, true, false);
         }
     }
 
@@ -375,11 +431,11 @@ public class DefaultClientValidationProvider implements ClientValidationProvider
 
     private void validateDefaultAcrValues(ValidationContext<ClientModel> context) {
         ClientModel client = context.getObjectToValidate();
+        if (!OIDCLoginProtocol.LOGIN_PROTOCOL.equals(client.getProtocol())) {
+            return;
+        }
         List<String> defaultAcrValues = AcrUtils.getDefaultAcrValues(client);
         Map<String, Integer> acrToLoaMap = AcrUtils.getAcrLoaMap(client);
-        if (acrToLoaMap.isEmpty()) {
-            acrToLoaMap = AcrUtils.getAcrLoaMap(client.getRealm());
-        }
         for (String configuredAcr : defaultAcrValues) {
             if (acrToLoaMap.containsKey(configuredAcr)) continue;
             if (LoAUtil.getLoAConfiguredInRealmBrowserFlow(client.getRealm())
@@ -389,21 +445,132 @@ public class DefaultClientValidationProvider implements ClientValidationProvider
         }
     }
 
+    private void validateAcrLoaMap(ValidationContext<ClientModel> context) {
+        ClientModel client = context.getObjectToValidate();
+        if (!SamlProtocol.LOGIN_PROTOCOL.equals(client.getProtocol()) && !OIDCLoginProtocol.LOGIN_PROTOCOL.equals(client.getProtocol())) {
+            return;
+        }
+        String value = client.getAttribute(Constants.ACR_LOA_MAP);
+        if (value != null && StringUtil.isNotBlank(value)) {
+            try {
+                Map<String, Integer> map = AcrUtils.parseAcrLoaMap(value);
+                if (SamlProtocol.LOGIN_PROTOCOL.equals(client.getProtocol())) {
+                    for (String uri : map.keySet()) {
+                        new URI(uri);
+                    }
+                }
+            } catch (IOException e) {
+                context.addError(Constants.ACR_LOA_MAP, "Invalid client configuration (ACR-LOA map) for client");
+            } catch (URISyntaxException e) {
+                context.addError(Constants.ACR_LOA_MAP, "Invalid URI for ACR-LOA map: " + e.getInput());
+            }
+        }
+    }
+
     private void validateMinimumAcrValue(ValidationContext<ClientModel> context) {
         ClientModel client = context.getObjectToValidate();
+        if (!SamlProtocol.LOGIN_PROTOCOL.equals(client.getProtocol()) && !OIDCLoginProtocol.LOGIN_PROTOCOL.equals(client.getProtocol())) {
+            return;
+        }
         String minimumAcrValue = AcrUtils.getMinimumAcrValue(client);
         if (minimumAcrValue != null) {
-            Map<String, Integer> acrToLoaMap = AcrUtils.getAcrLoaMap(client);
-            if (acrToLoaMap.isEmpty()) {
-                acrToLoaMap = AcrUtils.getAcrLoaMap(client.getRealm());
-            }
+            if (OIDCLoginProtocol.LOGIN_PROTOCOL.equals(client.getProtocol())) {
+                Map<String, Integer> acrToLoaMap = AcrUtils.getAcrLoaMap(client);
 
-            if(!acrToLoaMap.containsKey(minimumAcrValue)) {
-                if (LoAUtil.getLoAConfiguredInRealmBrowserFlow(client.getRealm())
-                        .noneMatch(level -> minimumAcrValue.equals(String.valueOf(level)))) {
-                    context.addError("minimumAcrValue", "Minimum ACR value needs to be value specified in the ACR-To-Loa mapping or number level from set realm browser flow");
+                if (!acrToLoaMap.containsKey(minimumAcrValue)) {
+                    if (LoAUtil.getLoAConfiguredInRealmBrowserFlow(client.getRealm())
+                            .noneMatch(level -> minimumAcrValue.equals(String.valueOf(level)))) {
+                        context.addError("minimumAcrValue", "Minimum ACR value needs to be value specified in the ACR-To-Loa mapping or number level from set realm browser flow");
+                    }
+                }
+            } else {
+                Map<String, Integer> acrToLoaMap = AcrUtils.getUriLoaMap(client);
+                if (!acrToLoaMap.containsKey(minimumAcrValue)) {
+                    context.addError("minimumAcrValue", "Minimum ACR value needs to be a URI specified in the ACR-To-Loa mapping");
                 }
             }
+        }
+    }
+    private void validateClientSessionTimeout(ValidationContext<ClientModel> context) {
+        ClientModel clientModel = context.getObjectToValidate();
+        if (clientModel == null ) return;
+        RealmModel realmModel =  clientModel.getRealm();
+        if (realmModel == null ) return;
+
+        //Realm values
+        int realmIdle = realmModel.getSsoSessionIdleTimeout();
+        int realmMax = realmModel.getSsoSessionMaxLifespan();
+        int realmRememberIdle = realmModel.getSsoSessionIdleTimeoutRememberMe();
+        int realmRememberMax = realmModel.getSsoSessionMaxLifespanRememberMe();
+
+        boolean rememberMeEnabled = realmModel.isRememberMe();
+
+        Integer clientIdle = parseIntAttribute(clientModel.getAttribute(OIDCConfigAttributes.CLIENT_SESSION_IDLE_TIMEOUT));
+        Integer clientMax = parseIntAttribute(clientModel.getAttribute(OIDCConfigAttributes.CLIENT_SESSION_MAX_LIFESPAN));
+
+        if(!rememberMeEnabled) {
+            // Client idle Timeout validation on Remember me disabled
+            if (clientIdle != null && clientIdle > realmIdle) {
+                context.addError(
+                        OIDCConfigAttributes.CLIENT_SESSION_IDLE_TIMEOUT,
+                        "Client session idle timeout cannot exceed realm SSO session idle timeout.",
+                        Messages.CLIENT_IDLE
+                );
+            }
+
+            // Max Lifespan validation on Remember me disabled
+            if (clientMax != null && clientMax > realmMax) {
+                context.addError(
+                        OIDCConfigAttributes.CLIENT_SESSION_MAX_LIFESPAN,
+                        "Client session max lifespan cannot exceed realm SSO session max lifespan.",
+                        Messages.CLIENT_MAXLIFE_SPAN
+                );
+            }
+        } else {
+            int allowedMaxIdleTimeIfRememberMeEnabled = Math.max(realmIdle, realmRememberIdle);
+            int allowedMaxSpanIfRememberMeEnabled = Math.max(realmMax,realmRememberMax);
+
+            //Client idle Timeout validation on Remember me enabled
+            if (clientIdle != null && clientIdle > allowedMaxIdleTimeIfRememberMeEnabled) {
+                context.addError(
+                        OIDCConfigAttributes.CLIENT_SESSION_IDLE_TIMEOUT,
+                        "Client session idle timeout cannot exceed realm SSO session idle timeout and RememberMe idle timeout.",
+                        Messages.CLIENT_IDLE_REMEMBERME
+                );
+            }
+
+            // Max Lifespan validation on Remember me enabled
+            if (clientMax != null && clientMax > allowedMaxSpanIfRememberMeEnabled) {
+                context.addError(
+                        OIDCConfigAttributes.CLIENT_SESSION_MAX_LIFESPAN,
+                        "Client session max lifespan cannot exceed realm SSO session max lifespan and RememberMe Max span.",
+                        Messages.CLIENT_MAXLIFESPAN_REMEMBERME
+                );
+            }
+        }
+
+    }
+
+    private void validateX509Credentials(ValidationContext<ClientModel> context) {
+        ClientModel client = context.getObjectToValidate();
+        if (!client.isPublicClient() && !client.isBearerOnly() && X509ClientAuthenticator.PROVIDER_ID.equals(client.getClientAuthenticatorType())) {
+            // TODO: return validation error for keycloak 27.0
+            if (Boolean.parseBoolean(client.getAttribute(X509ClientAuthenticator.ATTR_ALLOW_REGEX_PATTERN_COMPARISON))) {
+                logger.warnf("Option '%s' is deprecated. Please configure the X.509 client authenticator to use exact Subject DN for client '%s' in realm '%s'.",
+                        X509ClientAuthenticator.ATTR_ALLOW_REGEX_PATTERN_COMPARISON, client.getClientId(), context.getSession().getContext().getRealm().getName());
+            }
+            if (StringUtil.isBlank(client.getAttribute(X509ClientAuthenticator.ATTR_CA_SUBJECT_DN))) {
+                logger.warnf("Option '%s' is null or empty, this configuration is deprecated, please configure it for better security for client '%s' in realm '%s'",
+                        X509ClientAuthenticator.ATTR_CA_SUBJECT_DN, client.getClientId(), context.getSession().getContext().getRealm().getName());
+            }
+        }
+    }
+
+    private Integer parseIntAttribute(String value) {
+        try {
+            return (value == null || value.isEmpty()) ? null : Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 }

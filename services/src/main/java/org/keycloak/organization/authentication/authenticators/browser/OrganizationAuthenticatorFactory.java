@@ -17,8 +17,6 @@
 
 package org.keycloak.organization.authentication.authenticators.browser;
 
-import static org.keycloak.provider.ProviderConfigProperty.BOOLEAN_TYPE;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -26,12 +24,15 @@ import java.util.Set;
 import org.keycloak.Config.Scope;
 import org.keycloak.authentication.Authenticator;
 import org.keycloak.authentication.authenticators.browser.IdentityProviderAuthenticatorFactory;
+import org.keycloak.authentication.authenticators.browser.WebAuthnConditionalUIAuthenticator;
 import org.keycloak.common.Profile;
 import org.keycloak.common.Profile.Feature;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.credential.WebAuthnCredentialModel;
 import org.keycloak.provider.EnvironmentDependentProviderFactory;
 import org.keycloak.provider.ProviderConfigProperty;
+
+import static org.keycloak.provider.ProviderConfigProperty.BOOLEAN_TYPE;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
@@ -72,9 +73,9 @@ public class OrganizationAuthenticatorFactory extends IdentityProviderAuthentica
     }
 
     @Override
-    public Set<String> getOptionalReferenceCategories() {
-        return Profile.isFeatureEnabled(Profile.Feature.PASSKEYS)
+    public Set<String> getOptionalReferenceCategories(KeycloakSession session) {
+        return WebAuthnConditionalUIAuthenticator.isPasskeysEnabled(session)
                 ? Collections.singleton(WebAuthnCredentialModel.TYPE_PASSWORDLESS)
-                : super.getOptionalReferenceCategories();
+                : super.getOptionalReferenceCategories(session);
     }
 }

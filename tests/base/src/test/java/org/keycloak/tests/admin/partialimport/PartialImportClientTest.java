@@ -1,7 +1,11 @@
 package org.keycloak.tests.admin.partialimport;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.keycloak.admin.client.resource.AuthorizationResource;
 import org.keycloak.admin.client.resource.ClientResource;
 import org.keycloak.admin.client.resource.UserResource;
@@ -16,13 +20,11 @@ import org.keycloak.representations.idm.RolesRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.authorization.ResourceServerRepresentation;
 import org.keycloak.testframework.annotations.KeycloakIntegrationTest;
+import org.keycloak.tests.suites.DatabaseTest;
 import org.keycloak.tests.utils.Assert;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class PartialImportClientTest extends AbstractPartialImportTest {
 
     @Test
+    @DatabaseTest
     public void testAddClients() {
         setFail();
         addClients(false);
@@ -99,6 +102,7 @@ public class PartialImportClientTest extends AbstractPartialImportTest {
     }
 
     @Test
+    @DatabaseTest
     public void testAddClientsOverwrite() {
         addClients(false);
         testOverwrite();
