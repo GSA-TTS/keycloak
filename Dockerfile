@@ -7,8 +7,16 @@ FROM maven:3.9-eclipse-temurin-17 AS builder
 COPY . /usr/src/keycloak-project/
 WORKDIR /usr/src/keycloak-project/
 
-# Initialize and update submodules
-RUN git submodule update --init --recursive
+# Initialize and update submodules, unless their content is already present
+# in the build context (e.g. when this repo is checked out as a git submodule
+# itself, .git is a gitlink pointing outside the build context and can't be
+# used to re-resolve submodules here — but the host will have already
+# checked them out, so there's nothing to do).
+RUN if [ -f keycloak-login.gov-integration/pom.xml ] && [ -f extensions/keycloak-api-key-demo/api-key-module/pom.xml ]; then \
+		echo "Submodule content already present, skipping git submodule update"; \
+	else \
+		git submodule update --init --recursive; \
+	fi
 
 # Copy the Maven settings file to the working directory.
 COPY maven-settings.xml /usr/src/keycloak-project/maven-settings.xml
