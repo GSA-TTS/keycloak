@@ -2,13 +2,15 @@
 
 IMAGE_NAME ?= keycloak-local
 BUILD_ENV ?= LOCAL # Default to LOCAL for Zscaler certificate inclusion
+NOCACHE ?= false # Set to true (or `make build NOCACHE=true`) to force a clean rebuild
 
 # Container engine detection: prefer Docker, fall back to Podman
 CONTAINER_ENGINE ?= $(shell command -v docker >/dev/null 2>&1 && echo docker || echo podman)
+NOCACHE_FLAG := $(if $(filter true,$(NOCACHE)),--no-cache,)
 
 build:
 	@echo "Building $(CONTAINER_ENGINE) image '$(IMAGE_NAME)' with BUILD_ENV=$(BUILD_ENV)..."
-	$(CONTAINER_ENGINE) build --no-cache --build-arg BUILD_ENV=$(BUILD_ENV) -t $(IMAGE_NAME) .
+	$(CONTAINER_ENGINE) build $(NOCACHE_FLAG) --build-arg BUILD_ENV=$(BUILD_ENV) -t $(IMAGE_NAME) .
 	@echo "$(CONTAINER_ENGINE) image build complete."
 
 run:
@@ -30,6 +32,7 @@ help:
 	@echo "Makefile for Keycloak local development:"
 	@echo "  build      - Build the container image for Keycloak with local extensions (Docker or Podman)."
 	@echo "               Use 'make build BUILD_ENV=production' to skip Zscaler cert inclusion."
+	@echo "               Use 'make build NOCACHE=true' to force a clean rebuild (no layer cache)."
 	@echo "  run        - Run the Keycloak container (admin:admin)."
 	@echo "  clean      - Stop and remove running containers and delete the built image."
 	@echo "  help       - Display this help message."
