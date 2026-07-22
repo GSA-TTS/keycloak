@@ -10,7 +10,7 @@ NOCACHE_FLAG := $(if $(filter true,$(NOCACHE)),--no-cache,)
 
 build:
 	@echo "Building $(CONTAINER_ENGINE) image '$(IMAGE_NAME)' with BUILD_ENV=$(BUILD_ENV)..."
-	$(CONTAINER_ENGINE) build $(NOCACHE_FLAG) --build-arg BUILD_ENV=$(BUILD_ENV) -t $(IMAGE_NAME) .
+	DOCKER_BUILDKIT=1 $(CONTAINER_ENGINE) build $(NOCACHE_FLAG) --build-arg BUILD_ENV=$(BUILD_ENV) -t $(IMAGE_NAME) .
 	@echo "$(CONTAINER_ENGINE) image build complete."
 
 run:

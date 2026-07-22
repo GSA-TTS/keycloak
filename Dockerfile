@@ -32,15 +32,20 @@ WORKDIR /usr/src/keycloak-project/
 # The -pl flag specifies the module to build.
 # The -am flag (alsomake) ensures that any local Maven modules it depends on are also built.
 # -DskipTests is used to speed up the build process by skipping tests.
-RUN mvn --settings maven-settings.xml clean package -pl keycloak-login.gov-integration -am -DskipTests
+# The cache mount persists ~/.m2 across builds (including --no-cache rebuilds),
+# so the large reactor's dependencies aren't re-downloaded every time.
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn --settings maven-settings.xml clean package -pl keycloak-login.gov-integration -am -DskipTests
 
 # List the contents of the target directory for login.gov integration for debugging
 RUN ls -l /usr/src/keycloak-project/keycloak-login.gov-integration/target/
 
 # Build other extensions
-RUN mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/api-key-module -DskipTests
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/api-key-module -DskipTests
 RUN ls -l /usr/src/keycloak-project/extensions/keycloak-api-key-demo/api-key-module/target/deploy/
-RUN mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/dashboard-service -DskipTests
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/dashboard-service -DskipTests
 RUN ls -l /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-service/target/
 
 # Stage 2: Prepare the Keycloak runtime
