@@ -48,16 +48,11 @@ RUN --mount=type=cache,target=/root/.m2 \
     mvn --settings maven-settings.xml clean package -f extensions/keycloak-api-key-demo/dashboard-service -DskipTests
 RUN ls -l /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-service/target/
 
-# Build the themes module to compile the usai theme
-RUN --mount=type=cache,target=/root/.m2 \
-    mvn --settings maven-settings.xml clean package -f themes -DskipTests
-RUN ls -l /usr/src/keycloak-project/themes/target/classes/theme/
-
 # Stage 2: Prepare the Keycloak runtime
 # Use the official Keycloak image as the base.
 # Note: If you encounter TLS errors pulling this image, it's an environment issue
 # with your Docker setup's trust store for quay.io.
-FROM quay.io/keycloak/keycloak:23.0.6
+FROM quay.io/keycloak/keycloak:26.2.3
 
 # Copy the Login.gov extension JAR built in the 'builder' stage.
 # This copies the JAR from the target directory of the keycloak-login.gov-integration module
@@ -67,14 +62,26 @@ COPY --from=builder /usr/src/keycloak-project/keycloak-login.gov-integration/tar
 COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/api-key-module/target/deploy/api-key-module-*.jar /opt/keycloak/providers/
 COPY --from=builder /usr/src/keycloak-project/extensions/keycloak-api-key-demo/dashboard-service/target/dashboard-service-*.jar /opt/keycloak/providers/
 
-# Copy the custom usai theme from the compiled location
-COPY --from=builder /usr/src/keycloak-project/themes/target/classes/theme/ /opt/keycloak/themes/
+# Copy the custom usai theme directly from source. This directory is already
+# laid out the way Keycloak expects at runtime (login/*.ftl, resources/,
+# messages/, theme.properties) — no Maven build needed. The themes module's
+# own build (via `mvn package -f themes`) also builds Keycloak's upstream
+# admin/account console themes, which pull in keycloak-admin-ui/account-ui/
+# themes-vendor artifacts that only exist inside a full Keycloak monorepo
+# build, so it's not viable to build in isolation here.
+COPY --from=builder /usr/src/keycloak-project/themes/src/main/resources/theme/usai/ /opt/keycloak/themes/usai/
 
 # Standard Keycloak environment variables (retained from original Dockerfile)
 ENV KC_HEALTH_ENABLED=true
 ENV KC_METRICS_ENABLED=true
 ENV KC_DB=postgres
 ENV KC_HOSTNAME=localhost
+# kc.sh build persists build-time options (including features) into the
+# optimized image. If the runtime KC_FEATURES (set in docker-compose.yml)
+# doesn't match what was baked in here, `kc.sh start --optimized` fails at
+# startup rather than warning and continuing. Keep this list in sync with
+# docker-compose.yml's KC_FEATURES.
+ENV KC_FEATURES=token-exchange,admin-fine-grained-authz,admin-api,admin,authorization,ciba,client-policies,device-flow,impersonation,kerberos,login,organization,par,persistent-user-sessions,token-exchange-standard,user-event-metrics,client-secret-rotation
 
 WORKDIR /opt/keycloak
 
